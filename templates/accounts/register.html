@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Rejestracja — E-Cucumbers{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="text-align: center; margin-bottom: 1.5rem;">
+        <img src="{% static 'img/Logo-subtitle-transparent.png' %}" alt="E-Cucumbers Logo"
+            style="max-height: 200px; width: auto; object-fit: contain;">
+    </div>
+    <h1 style="text-align: center;">Rejestracja</h1>
+    <p class="subtitle">Utwórz konto, aby zarządzać systemem.</p>
+
+    {% if form.errors %}
+    <div class="alert alert-error">
+        {% for field, errors in form.errors.items %}
+        {% for error in errors %}
+        <div>{{ error }}</div>
+        {% endfor %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="id_username">Nazwa użytkownika</label>
+            <input type="text" name="username" id="id_username" value="{{ form.username.value|default:'' }}" required
+                autofocus>
+        </div>
+        <div class="form-group">
+            <label for="id_email">Email</label>
+            <input type="email" name="email" id="id_email" value="{{ form.email.value|default:'' }}" required>
+        </div>
+        <div class="form-group">
+            <label for="id_password1">Hasło</label>
+            <input type="password" name="password1" id="id_password1" required>
+        </div>
+        <div class="form-group">
+            <label for="id_password2">Powtórz hasło</label>
+            <input type="password" name="password2" id="id_password2" required>
+        </div>
+        <button type="submit" class="btn">Zarejestruj się</button>
+    </form>
+
+    <div class="form-footer">
+        Masz już konto? <a href="{% url 'login' %}">Zaloguj się</a>
+    </div>
+</div>
+{% endblock %}
