@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Zarządzanie Użytkownikami — E-Cucumbers{% endblock %}
+
+{% block extra_css %}
+<style>
+    .admin-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .users-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+        background: white;
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow);
+    }
+
+    .users-table th,
+    .users-table td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--gray-200);
+    }
+
+    .users-table th {
+        background: var(--gray-50);
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: var(--gray-500);
+        text-transform: uppercase;
+    }
+
+    .users-table td {
+        font-size: 0.875rem;
+    }
+
+    .users-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-admin {
+        background: var(--green-100);
+        color: var(--green-800);
+    }
+
+    .badge-user {
+        background: var(--gray-100);
+        color: var(--gray-700);
+    }
+
+    .action-form {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .select-role {
+        padding: 0.4rem;
+        border: 1px solid var(--gray-300);
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+
+    .btn-small {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.75rem;
+        width: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="dashboard-header">
+        <h1>Zarządzanie Użytkownikami</h1>
+        <p>Panel administracyjny. Ustal role dla poszczególnych użytkowników i przydzielaj uprawnienia.</p>
+    </div>
+
+    <form method="POST" action="{% url 'manage_users' %}">
+        {% csrf_token %}
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nazwa Użytkownika</th>
+                    <th>Email</th>
+                    <th>Obecna Rola</th>
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>#{{ u.id }}</td>
+                    <td><strong>{{ u.username }}</strong></td>
+                    <td>{{ u.email }}</td>
+                    <td>
+                        {% if u.is_superuser %}
+                        <span class="badge badge-admin">Administrator Root</span>
+                        {% elif u.is_staff %}
+                        <span class="badge badge-admin" style="background:#e0f2fe; color:#0369a1;">Personel
+                            (Staff)</span>
+                        {% else %}
+                        <span class="badge badge-user">Zwykły Użytkownik</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.username == 'admin' %}
+                        <span style="font-size: 0.8rem; color: var(--red-500); font-weight: 600;">⛨ Konto chronione
+                            przez
+                            system ⛨</span>
+                        {% elif u.id != request.user.id %}
+                        <div class="action-form">
+                            <select name="role_{{ u.id }}" class="select-role">
+                                <option value="user" {% if not u.is_staff and not u.is_superuser %}selected{% endif %}>
+                                    Zwykły Użytkownik</option>
+                                <option value="staff" {% if u.is_staff and not u.is_superuser %}selected{% endif %}>
+                                    Personel
+                                    (Staff API)</option>
+                                <option value="superuser" {% if u.is_superuser %}selected{% endif %}>Superuser (Pełne
+                                    Info)
+                                </option>
+                            </select>
+                        </div>
+                        {% else %}
+                        <span style="font-size: 0.8rem; color: var(--gray-500); font-style: italic;">To Twoje
+                            konto</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--gray-500); padding: 2rem;">Brak innych
+                        zarejestrowanych użytkowników.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div style="margin-top: 1.5rem; text-align: right;">
+            <button type="submit" class="btn" style="width: auto; padding: 0.75rem 2rem;">Zapisz wszystkie
+                zmiany</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

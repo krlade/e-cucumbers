@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — E-Cucumbers{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>Dashboard</h1>
+    <p>Witaj, <strong>{{ user.username }}</strong>. System E-Cucumbers — monitorowanie i sterowanie.</p>
+</div>
+
+<div class="info-grid">
+    <div class="info-card">
+        <h3>Użytkownik</h3>
+        <div class="value">{{ user.username }}</div>
+    </div>
+    <div class="info-card">
+        <h3>Email</h3>
+        <div class="value">{{ user.email }}</div>
+    </div>
+    <div class="info-card">
+        <h3>Konto utworzone</h3>
+        <div class="value">{{ user.date_joined|date:"d.m.Y H:i" }}</div>
+    </div>
+
+    <div class="info-card placeholder">
+        <h3>Węzły / Czujniki</h3>
+        <div style="padding:1rem 0">Dane z czujników pojawią się tutaj po<br>podłączeniu Jednostki Centralnej.</div>
+    </div>
+    <div class="info-card placeholder">
+        <h3>Sterowanie</h3>
+        <div style="padding:1rem 0">Panel sterowania urządzeniami<br>końcowymi — wkrótce.</div>
+    </div>
+    <div class="info-card placeholder">
+        <h3>Discord</h3>
+        <div style="padding:1rem 0">Integracja z Discordem — wkrótce.</div>
+    </div>
+    {% if user.is_superuser %}
+    <div class="info-card" style="background: var(--green-50); border: 1px solid var(--green-200);">
+        <h3 style="color: var(--green-800);">Panel Administracyjny</h3>
+        <div style="padding:1rem 0;">
+            <p style="font-size: 0.875rem; color: var(--green-700); margin-bottom: 0.75rem;">Zarządzaj kontami innych
+                użytkowników (Uprawnienia)</p>
+            <a href="{% url 'manage_users' %}" class="btn" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Przejdź do
+                zarządzania</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
