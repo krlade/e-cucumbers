@@ -22,10 +22,33 @@
         <div class="value">{{ user.date_joined|date:"d.m.Y H:i" }}</div>
     </div>
 
-    <div class="info-card placeholder">
-        <h3>Węzły / Czujniki</h3>
-        <div style="padding:1rem 0">Dane z czujników pojawią się tutaj po<br>podłączeniu Jednostki Centralnej.</div>
+    <!-- Dodaj urządzenie -->
+    <div class="info-card" id="pairing-card">
+        <h3>Dodaj urządzenie</h3>
+        <div id="pairing-content">
+            <p style="font-size:0.875rem; color:var(--gray-500); margin-bottom:0.75rem;">
+                Wygeneruj token parowania, aby podłączyć Jednostkę Centralną.
+            </p>
+            <button class="btn" style="padding:0.4rem 1rem; font-size:0.8rem;" onclick="generatePairingToken()">
+                Generuj Token Parowania
+            </button>
+        </div>
+        <div id="pairing-result" style="display:none;">
+            <div style="text-align:center; padding:0.5rem 0;">
+                <div style="font-size:0.75rem; color:var(--gray-500); margin-bottom:0.25rem;">Token parowania:</div>
+                <div id="pairing-token-value"
+                    style="font-size:1.5rem; font-weight:700; color:var(--green-700); letter-spacing:0.1em; font-family:monospace;">
+                </div>
+                <div id="pairing-timer" style="font-size:0.8rem; color:var(--gray-500); margin-top:0.5rem;"></div>
+            </div>
+            <button class="btn"
+                style="padding:0.4rem 1rem; font-size:0.8rem; margin-top:0.5rem; background:var(--gray-500);"
+                onclick="resetPairing()">
+                Wygeneruj nowy
+            </button>
+        </div>
     </div>
+
     <div class="info-card placeholder">
         <h3>Sterowanie</h3>
         <div style="padding:1rem 0">Panel sterowania urządzeniami<br>końcowymi — wkrótce.</div>
@@ -46,4 +69,62 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+    function getCookie(name) {
+        const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+        return v ? v.pop() : '';
+    }
+
+    async function generatePairingToken() {
+        try {
+            const resp = await fetch('/api/nodes/pairing-token/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+            });
+            if (!resp.ok) {
+                alert('Błąd generowania tokenu: ' + resp.status);
+                return;
+            }
+            const data = await resp.json();
+            document.getElementById('pairing-content').style.display = 'none';
+            document.getElementById('pairing-result').style.display = 'block';
+            document.getElementById('pairing-token-value').textContent = data.token;
+            startTimer(data.expires_in_seconds);
+        } catch (e) {
+            alert('Błąd połączenia: ' + e.message);
+        }
+    }
+
+    let timerInterval = null;
+    function startTimer(seconds) {
+        clearInterval(timerInterval);
+        let remaining = seconds;
+        const el = document.getElementById('pairing-timer');
+        function update() {
+            if (remaining <= 0) {
+                el.textContent = 'Token wygasł.';
+                el.style.color = 'var(--red-500)';
+                clearInterval(timerInterval);
+                return;
+            }
+            const m = Math.floor(remaining / 60);
+            const s = remaining % 60;
+            el.textContent = `Ważny jeszcze: ${m}:${s.toString().padStart(2, '0')}`;
+            el.style.color = remaining < 60 ? 'var(--red-500)' : 'var(--gray-500)';
+            remaining--;
+        }
+        update();
+        timerInterval = setInterval(update, 1000);
+    }
+
+    function resetPairing() {
+        clearInterval(timerInterval);
+        document.getElementById('pairing-content').style.display = 'block';
+        document.getElementById('pairing-result').style.display = 'none';
+    }
+</script>
 {% endblock %}

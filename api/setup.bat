@@ -28,8 +28,12 @@ echo ===================================================
 echo   Setup zakonczony pomyslnie! Srodowisko gotowe.
 echo ===================================================
 echo.
-echo Aby uruchomic serwer deweloperski, wklej ponizsze dwie komendy do terminala:
-echo 1. .venv\Scripts\activate
-echo 2. python manage.py runserver
-echo.
+set "run_server="
+set /p run_server="Czy chcesz uruchomic .venv oraz serwer deweloperski? [Y/n] "
+if /i "%run_server%"=="n" goto skip_run
+
+call .venv\Scripts\activate.bat
+python manage.py runserver
+
+:skip_run
 pause
