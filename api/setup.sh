@@ -27,6 +27,8 @@ echo "==================================================="
 echo "  Setup zakonczony pomyslnie! Srodowisko gotowe."
 echo "==================================================="
 echo ""
-echo "Aby uruchomic serwer deweloperski, wpisz w terminalu we wspolnej komendzie:"
-echo "source .venv/bin/activate && python manage.py runserver"
-echo ""
+read -p "Czy chcesz uruchomic .venv oraz serwer deweloperski? [Y/n] " -r prompt
+if [[ ! $prompt =~ ^[Nn]$ ]]; then
+    source .venv/bin/activate
+    python3 manage.py runserver
+fi
