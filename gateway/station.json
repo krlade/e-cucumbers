@@ -1,0 +1,26 @@
+{
+    "twoja stara": {
+        "name": "twoja stara",
+        "last_data": "-0.521551",
+        "last_seen": null,
+        "is_sending": false,
+        "delay_ms": null,
+        "pins": {}
+    },
+    "PICO": {
+        "name": "PICO",
+        "last_data": 0.006099999,
+        "last_seen": "2026-04-21T19:15:25.707811+00:00",
+        "is_sending": false,
+        "delay_ms": null,
+        "pins": {}
+    },
+    "Pico_01": {
+        "name": "Pico_01",
+        "last_data": null,
+        "last_seen": null,
+        "is_sending": false,
+        "delay_ms": null,
+        "pins": {}
+    }
+}

@@ -1,0 +1,484 @@
+{% extends "base.html" %}
+
+{% block title %}{{ node.name }} — E-Cucumbers{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ── Layout ─────────────────────────────────────────── */
+    .node-page {
+        max-width: 860px;
+        margin: 0 auto;
+    }
+
+    /* ── Breadcrumb ─────────────────────────────────────── */
+    .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8125rem;
+        color: var(--gray-500);
+        margin-bottom: 1.5rem;
+    }
+    .breadcrumb a {
+        color: var(--green-600);
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb-sep { color: var(--gray-300); }
+
+    /* ── Hero card ──────────────────────────────────────── */
+    .node-hero {
+        background: white;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 1.75rem 2rem;
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+    .node-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        background: var(--green-100);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        flex-shrink: 0;
+    }
+    .node-hero-title { flex: 1; min-width: 180px; }
+    .node-hero-title h1 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--gray-900);
+        margin-bottom: 0.25rem;
+    }
+    .node-hero-title .sub {
+        font-size: 0.8125rem;
+        color: var(--gray-500);
+    }
+
+    /* ── Status badge ───────────────────────────────────── */
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .badge-online {
+        background: var(--green-100);
+        color: var(--green-700);
+    }
+    .badge-offline {
+        background: var(--gray-100);
+        color: var(--gray-500);
+    }
+    .badge-dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse-dot 1.8s infinite;
+    }
+    .badge-offline .badge-dot { animation: none; }
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.35; }
+    }
+
+    /* ── Grid of stat cards ─────────────────────────────── */
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+    }
+    .stat-card {
+        background: white;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 1.25rem 1.5rem;
+        transition: box-shadow 0.2s;
+    }
+    .stat-card:hover { box-shadow: var(--shadow-lg); }
+    .stat-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.4rem;
+    }
+    .stat-value {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--gray-900);
+        word-break: break-all;
+    }
+    .stat-value.mono {
+        font-family: 'Courier New', monospace;
+        font-size: 0.95rem;
+    }
+    .stat-value.muted { color: var(--gray-400); font-weight: 400; }
+
+    /* ── Last data card ─────────────────────────────────── */
+    .data-card {
+        background: white;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.25rem;
+    }
+    .data-card h2 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 1rem;
+    }
+    .data-row {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+        padding: 0.55rem 0;
+        border-bottom: 1px solid var(--gray-100);
+        font-size: 0.9rem;
+    }
+    .data-row:last-child { border-bottom: none; }
+    .data-key {
+        min-width: 160px;
+        color: var(--gray-500);
+        font-weight: 500;
+        font-size: 0.8125rem;
+    }
+    .data-val {
+        font-weight: 600;
+        color: var(--gray-900);
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+        word-break: break-all;
+    }
+
+    /* ── Pins table ─────────────────────────────────────── */
+    .pins-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .pin-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        font-family: monospace;
+    }
+    .pin-high {
+        background: var(--green-100);
+        color: var(--green-800);
+    }
+    .pin-low {
+        background: var(--gray-100);
+        color: var(--gray-600);
+    }
+
+    /* ── Empty state ────────────────────────────────────── */
+    .empty-hint {
+        color: var(--gray-400);
+        font-style: italic;
+        font-size: 0.875rem;
+    }
+
+    /* ── Control panel ──────────────────────────────────── */
+    .ctrl-card {
+        background: white;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.25rem;
+    }
+    .ctrl-card h2 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 1.25rem;
+    }
+    .ctrl-offline-banner {
+        background: var(--gray-100);
+        border-radius: var(--radius);
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        color: var(--gray-500);
+        font-style: italic;
+    }
+    .ctrl-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: flex-end;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--gray-100);
+    }
+    .ctrl-group:last-child { border-bottom: none; }
+    .ctrl-group-label {
+        min-width: 120px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--gray-600);
+        padding-top: 0.4rem;
+    }
+    .ctrl-input {
+        padding: 0.45rem 0.7rem;
+        border: 1px solid var(--gray-300);
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        font-family: 'Courier New', monospace;
+        width: 90px;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .ctrl-input:focus {
+        outline: none;
+        border-color: var(--green-500);
+        box-shadow: 0 0 0 3px rgba(34,197,94,0.15);
+    }
+    .ctrl-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.45rem 1rem;
+        border: none;
+        border-radius: var(--radius);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.1s;
+    }
+    .ctrl-btn:active { transform: scale(0.97); }
+    .ctrl-btn-green {
+        background: var(--green-600);
+        color: white;
+    }
+    .ctrl-btn-green:hover { background: var(--green-700); }
+    .ctrl-btn-gray {
+        background: var(--gray-200);
+        color: var(--gray-700);
+    }
+    .ctrl-btn-gray:hover { background: var(--gray-300); }
+    .ctrl-btn-red {
+        background: #dc2626;
+        color: white;
+    }
+    .ctrl-btn-red:hover { background: #b91c1c; }
+    .ctrl-btn-amber {
+        background: #d97706;
+        color: white;
+    }
+    .ctrl-btn-amber:hover { background: #b45309; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="node-page">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+        <a href="{% url 'dashboard' %}">Dashboard</a>
+        <span class="breadcrumb-sep">›</span>
+        <span>Węzły</span>
+        <span class="breadcrumb-sep">›</span>
+        <strong>{{ node.name }}</strong>
+    </nav>
+
+    <!-- Hero -->
+    <div class="node-hero">
+        <div class="node-icon">📡</div>
+        <div class="node-hero-title">
+            <h1>{{ node.name }}</h1>
+            <span class="sub">Zarejestrowano: {{ node.created_at|date:"d.m.Y H:i" }}</span>
+        </div>
+        {% if node.is_online %}
+            <span class="badge badge-online"><span class="badge-dot"></span>Online</span>
+        {% else %}
+            <span class="badge badge-offline"><span class="badge-dot"></span>Offline</span>
+        {% endif %}
+    </div>
+
+    <!-- Stat cards -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-label">Ostatnia transmisja</div>
+            {% if node.last_seen %}
+                <div class="stat-value" title="{{ node.last_seen|date:'d.m.Y H:i:s' }}">
+                    {{ node.last_seen_ago }}
+                </div>
+                <div style="font-size:0.75rem; color:var(--gray-400); margin-top:0.25rem;">
+                    {{ node.last_seen|date:"d.m.Y H:i:s" }}
+                </div>
+            {% else %}
+                <div class="stat-value muted">Brak danych</div>
+            {% endif %}
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Status nadawania</div>
+            {% if node.is_sending %}
+                <div class="stat-value" style="color:var(--green-600);">🟢 Aktywne</div>
+            {% else %}
+                <div class="stat-value muted">⚫ Uśpione</div>
+            {% endif %}
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Interwał transmisji</div>
+            {% if node.delay_ms is not None %}
+                <div class="stat-value">{{ node.delay_ms }} ms</div>
+            {% else %}
+                <div class="stat-value muted">—</div>
+            {% endif %}
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Piny GPIO</div>
+            <div class="stat-value">{{ node.pins|length }} skonfigurowanych</div>
+        </div>
+    </div>
+
+    <!-- Last data payload -->
+    <div class="data-card">
+        <h2>Ostatnie dane pomiarowe</h2>
+        {% if node.last_data %}
+            {% if node.last_data.items %}
+                {% for key, val in node.last_data.items %}
+                <div class="data-row">
+                    <span class="data-key">{{ key }}</span>
+                    <span class="data-val">{{ val }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="data-row">
+                    <span class="data-val">{{ node.last_data }}</span>
+                </div>
+            {% endif %}
+        {% else %}
+            <p class="empty-hint">Brak odebranych danych pomiarowych dla tego węzła.</p>
+        {% endif %}
+    </div>
+
+    <!-- GPIO pins -->
+    <div class="data-card">
+        <h2>Stan Pinów GPIO</h2>
+        {% if node.pins %}
+            <div class="pins-grid">
+                {% for pin, val in node.pins.items %}
+                    <span class="pin-chip {% if val %}pin-high{% else %}pin-low{% endif %}">
+                        GPIO {{ pin }}: {% if val %}HIGH{% else %}LOW{% endif %}
+                    </span>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-hint">Brak zarejestrowanych pinów GPIO dla tego węzła.</p>
+        {% endif %}
+    </div>
+    <!-- Control panel -->
+    <div class="ctrl-card">
+        <h2>Panel sterowania</h2>
+
+        {% if not live_device %}
+            <p class="ctrl-offline-banner">
+                ⚠️ Bramka MQTT nie jest podłączona — komendy są niedostępne.
+            </p>
+        {% else %}
+
+        {# ── Zasilanie ────────────────────────────────────── #}
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Nadawanie</span>
+            <form method="POST" action="{% url 'node_detail' node.name %}">
+                {% csrf_token %}
+                <input type="hidden" name="command" value="set_on">
+                <button type="submit" class="ctrl-btn ctrl-btn-green">▶ set_on</button>
+            </form>
+            <form method="POST" action="{% url 'node_detail' node.name %}">
+                {% csrf_token %}
+                <input type="hidden" name="command" value="set_off">
+                <button type="submit" class="ctrl-btn ctrl-btn-gray">⏹ set_off</button>
+            </form>
+        </div>
+
+        {# ── Pin ON ───────────────────────────────────────── #}
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">GPIO pin ON</span>
+            <form method="POST" action="{% url 'node_detail' node.name %}" style="display:flex;gap:0.5rem;align-items:flex-end;">
+                {% csrf_token %}
+                <input type="hidden" name="command" value="pin_on">
+                <input
+                    id="pin-on-arg"
+                    type="number" name="argument" min="0" max="40"
+                    placeholder="nr pinu" required
+                    class="ctrl-input"
+                >
+                <button type="submit" class="ctrl-btn ctrl-btn-green">⬆ pin_on</button>
+            </form>
+        </div>
+
+        {# ── Pin OFF ──────────────────────────────────────── #}
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">GPIO pin OFF</span>
+            <form method="POST" action="{% url 'node_detail' node.name %}" style="display:flex;gap:0.5rem;align-items:flex-end;">
+                {% csrf_token %}
+                <input type="hidden" name="command" value="pin_off">
+                <input
+                    id="pin-off-arg"
+                    type="number" name="argument" min="0" max="40"
+                    placeholder="nr pinu" required
+                    class="ctrl-input"
+                >
+                <button type="submit" class="ctrl-btn ctrl-btn-red">⬇ pin_off</button>
+            </form>
+        </div>
+
+        {# ── Interwał ─────────────────────────────────────── #}
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Interwał [ms]</span>
+            <form method="POST" action="{% url 'node_detail' node.name %}" style="display:flex;gap:0.5rem;align-items:flex-end;">
+                {% csrf_token %}
+                <input type="hidden" name="command" value="change_delay">
+                <input
+                    id="delay-arg"
+                    type="number" name="argument" min="100" max="60000"
+                    placeholder="np. 1000" required
+                    class="ctrl-input"
+                    value="{% if node.delay_ms %}{{ node.delay_ms }}{% endif %}"
+                >
+                <button type="submit" class="ctrl-btn ctrl-btn-amber">⏱ change_delay</button>
+            </form>
+        </div>
+
+        {# ── Echo ─────────────────────────────────────────── #}
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Test komunikacji</span>
+            <form method="POST" action="{% url 'node_detail' node.name %}">
+                {% csrf_token %}
+                <input type="hidden" name="command" value="echo">
+                <button type="submit" class="ctrl-btn ctrl-btn-gray">📶 echo</button>
+            </form>
+        </div>
+
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

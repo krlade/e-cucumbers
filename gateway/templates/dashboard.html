@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — E-Cucumbers{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>Dashboard</h1>
+    <p>Witaj, <strong>{{ user.username }}</strong>. System E-Cucumbers — monitorowanie i sterowanie.</p>
+</div>
+
+<div class="info-grid">
+    <div class="info-card">
+        <h3>Użytkownik</h3>
+        <div class="value">{{ user.username }}</div>
+    </div>
+    <div class="info-card">
+        <h3>Email</h3>
+        <div class="value">{{ user.email }}</div>
+    </div>
+    <div class="info-card">
+        <h3>Konto utworzone</h3>
+        <div class="value">{{ user.date_joined|date:"d.m.Y H:i" }}</div>
+    </div>
+
+    <div class="info-card" style="grid-column: 1 / -1;">
+        <h3>Aktywne Urządzenia (Centralna sieć komunikacji)</h3>
+        <div style="padding: 1rem 0;">
+            {% if devices %}
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--gray-200); text-align: left;">
+                        <th style="padding: 0.5rem;">Nazwa węzła</th>
+                        <th style="padding: 0.5rem;">Status danych</th>
+                        <th style="padding: 0.5rem;">Ostatnia transmisja</th>
+                        <th style="padding: 0.5rem;">Ostatnie odebrane</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for device in devices %}
+                    <tr style="border-bottom: 1px solid var(--gray-100);">
+                        <td style="padding: 0.5rem;">
+                            <a href="{% url 'node_detail' device.name %}"
+                               style="color: var(--green-700); font-weight: 600; text-decoration: none;">
+                                {{ device.name }}
+                            </a>
+                        </td>
+                        <td style="padding: 0.5rem;">
+                            {% if device.is_sending %}
+                                <span style="color: var(--green-600); font-weight: bold;">AKTYWNE</span>
+                            {% else %}
+                                <span style="color: var(--gray-500);">UŚPIONE / BRAK</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.5rem; font-size: 0.875rem; color: var(--gray-600);">
+                            {% if device.last_seen %}
+                                {{ device.last_seen|date:"d.m.Y H:i:s" }}
+                            {% else %}
+                                <em style="color: var(--gray-400);">Brak danych</em>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.5rem;">
+                            {% if device.last_data %}
+                                {{ device.last_data }}
+                            {% else %}
+                                <em>Brak danych w tym strumieniu</em>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: var(--gray-500); padding-bottom: 1rem;">Brak skonfigurowanych urządzeń lub brak komunikacji ze stacją bazową.</p>
+            {% endif %}
+
+            <h4 style="margin-bottom: 1rem;">Dodaj nowe Urządzenie:</h4>
+            <form method="POST" action="{% url 'dashboard' %}" style="display: flex; gap: 0.5rem;">
+                {% csrf_token %}
+                <input type="text" name="new_device_name" placeholder="np. Pico_01" required style="padding: 0.4rem; border: 1px solid var(--gray-300); border-radius: 4px; flex: 1;">
+                <button type="submit" class="btn" style="padding: 0.4rem 1rem;">Zarejestruj</button>
+            </form>
+        </div>
+    </div>
+
+    {% if user.is_superuser %}
+    <div class="info-card" style="background: var(--green-50); border: 1px solid var(--green-200);">
+        <h3 style="color: var(--green-800);">Panel Administracyjny</h3>
+        <div style="padding:1rem 0;">
+            <p style="font-size: 0.875rem; color: var(--green-700); margin-bottom: 0.75rem;">Zarządzaj kontami innych użytkowników</p>
+            <a href="{% url 'manage_users' %}" class="btn" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Przejdź do zarządzania</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
