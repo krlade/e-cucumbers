@@ -1,5 +1,4 @@
 import random
-import string
 
 from django.conf import settings
 from django.db import models
@@ -26,7 +25,6 @@ class PairingToken(models.Model):
     def generate(cls, owner):
         """Create a new pairing token for the given user."""
         code = f"TEMP-{random.randint(1000, 9999)}"
-        # Ensure uniqueness
         while cls.objects.filter(token=code).exists():
             code = f"TEMP-{random.randint(1000, 9999)}"
         return cls.objects.create(
@@ -78,3 +76,77 @@ class DeviceOwnership(models.Model):
 
     def __str__(self):
         return f"{self.user.username} -> {self.device.device_id} ({self.role})"
+
+
+class ControllableNode(models.Model):
+    """Urządzenie peryferyjne podłączone do pinu GPIO Jednostki Centralnej."""
+
+    TYPE_LAMP = "LAMP"
+    TYPE_SPRINKLER = "SPRINKLER"
+    TYPE_CHOICES = [
+        (TYPE_LAMP, "Lampa"),
+        (TYPE_SPRINKLER, "Zraszacz"),
+    ]
+
+    # Legalne komendy per typ urządzenia.
+    # params=[] oznacza brak wymaganego parametru; params z "key":"time" oznacza wymagany czas.
+    COMMANDS = {
+        TYPE_LAMP: [
+            {"name": "TURN_ON",     "params": []},
+            {"name": "TURN_OFF",    "params": []},
+            {"name": "TURN_ON_FOR", "params": [{"key": "time", "unit": "minutes", "type": "int"}]},
+        ],
+        TYPE_SPRINKLER: [
+            {"name": "WATER_PUMP_ON", "params": [{"key": "time", "unit": "minutes", "type": "int"}]},
+        ],
+    }
+
+    gateway = models.ForeignKey(
+        CentralUnit, on_delete=models.CASCADE, related_name="peripherals"
+    )
+    node_id = models.CharField(max_length=64, help_text="ID węzła końcowego, np. 'Pico_01'")
+    gpio = models.PositiveSmallIntegerField(help_text="Numer pinu GPIO")
+    peripheral_type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    registered_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("gateway", "node_id", "gpio")
+
+    @property
+    def allowed_commands(self):
+        return self.COMMANDS.get(self.peripheral_type, [])
+
+    def __str__(self):
+        return f"{self.peripheral_type} @ {self.gateway.device_id}/{self.node_id} GPIO{self.gpio}"
+
+
+class QueuedCommand(models.Model):
+    """Polecenie zakolejkowane przez użytkownika, oczekujące na odebranie przez gateway (heartbeat)."""
+
+    STATUS_PENDING = "pending"
+    STATUS_DELIVERED = "delivered"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Oczekujące"),
+        (STATUS_DELIVERED, "Dostarczone"),
+    ]
+
+    peripheral = models.ForeignKey(
+        ControllableNode, on_delete=models.CASCADE, related_name="queued_commands"
+    )
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="issued_commands"
+    )
+    command = models.CharField(max_length=32, help_text="Nazwa komendy, np. 'TURN_ON_FOR'")
+    # Czas jako opcjonalny parametr (godziny dla lamp, minuty dla zraszaczy)
+    time = models.PositiveIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        param = f" time={self.time}" if self.time is not None else ""
+        return f"{self.command}{param} -> {self.peripheral} [{self.status}]"

@@ -58,7 +58,7 @@ Aplikacja jest minimalnym rozwiązaniem typu monolith (łączy podział widoków
 
 * **`ecucumbers/`** - Główny moduł aplikacyjny z definicjami połączeń (zabezpieczenia, ustawienia silnika DRF, instalacja biblioteki JWT dla wtyczki REST, struktura główna routingu bazy). Wszystkie niezbędne porty CORS pozwalające na zrealizowane odpytywanie zewnętrzne na wariantach deweloperskich są zdefiniowane tutaj.
 * **`accounts/`** - Moduł odpowiedzialny wyłącznie za operacje logiczne na profilach (rejestracje kont z mechanizmem walidacyjnym, zarządzanie logowaniem i generowanie docelowych poświadczeń szyfrowanych).
-* **`nodes/`** - Sub-aplikacja obsługująca parowanie i rejestrację Jednostek Centralnych (Raspberry Pi), przechowująca relacje właścicielskie (model `DeviceOwnership` z rolami `admin`/`viewer`) oraz przygotowana na przyszłe pomiary z czujników i komendy sterujące.
+* **`nodes/`** - Sub-aplikacja obsługująca parowanie, rejestrację i sterowanie Jednostkami Centralnymi (Raspberry Pi). Zawiera modele: `CentralUnit`, `DeviceOwnership` (role admin/viewer), `ControllableNode` (peryferia końcowe z mapowaniem GPIO i legalnymi komendami per typ). Przygotowana na telemetrię i komendy sterujące (Faza 2).
 * **`tests/`** - Folder z testami integracyjnymi weryfikującymi poprawność endpointów.
 
 Do komunikacji w ramach protokołu REST API używany jest autoryzacyjny zbiór mechanizmów z wtyczką **JWT (JSON Web Tokens)** implementując zrzut kluczy `access` i `refresh`. 
@@ -95,23 +95,25 @@ Obecne zestawienie docelowych API (posiadają pełne funkcjonalności ułatwiaj�
 
 | Typ w API | Ścieżka (Endpoint) | Autoryzacja | Opis wykonania | Wymagany ładunek wejściowy (JSON) | Typ Odpowiedzi |
 |---|---|---|---|---|---|
-| `POST` | `/api/nodes/pairing-token/` | ✅ Bearer JWT | Generuje tymczasowy Token Parowania (ważny 15 min, format `TEMP-XXXX`), powiązany z kontem użytkownika. | Brak ładunku (pusty POST) | Status `201`. `{"token":"TEMP-8492", "expires_at":"...", "expires_in_seconds": 900}` |
-| `POST` | `/api/nodes/register-device/` | ❌ Brak | Rejestracja Jednostki Centralnej. Waliduje Token Parowania, tworzy rekord urządzenia, nadaje właścicielowi rolę admin, zwraca JWT dla urządzenia. | `{"device_id":"2137", "pairing_token":"TEMP-8492"}` | Status `200`. `{"device_id":"2137", "owner":"Jan", "access":"<k>", "refresh":"<k>"}` |
+| `POST` | `/api/nodes/pairing-token/` | ✅ Bearer JWT (user) | Generuje tymczasowy Token Parowania (ważny 15 min, format `TEMP-XXXX`), powiązany z kontem użytkownika. | Brak ładunku (pusty POST) | Status `201`. `{"token":"TEMP-8492", "expires_at":"...", "expires_in_seconds": 900}` |
+| `POST` | `/api/nodes/register-device/` | ❌ Brak | Rejestracja lub ponowna rejestracja Jednostki Centralnej po factory reset. Waliduje Token Parowania, tworzy rekord urządzenia, nadaje właścicielowi rolę admin, zwraca JWT dla urządzenia. | `{"device_id":"2137", "pairing_token":"TEMP-8492"}` | Status `200`. `{"device_id":"2137", "owner":"Jan", "access":"<k>", "refresh":"<k>"}` |
+| `POST` | `/api/nodes/register-peripherals/` | ✅ Bearer JWT (device) | Gateway rejestruje swoje peryferia (lampy, zraszacze) z mapowaniem GPIO. Operacja idempotentna (upsert). JWT musi należeć do tego konkretnego gatewaya. | `{"device_id":"2137", "peripherals":[{"node_id":"Pico_01", "gpio":1, "peripheral_type":"LAMP"}]}` | Status `200`. Lista zarejestrowanych peryferiów z legalnymi komendami. |
+| `GET` | `/api/nodes/peripherals/?device_id=2137` | ✅ Bearer JWT (user) | Pobiera listę peryferiów gatewaya. Użytkownik musi mieć dowolną rolę w `DeviceOwnership`. | Brak ładunku | Status `200`. Lista peryferiów z `allowed_commands` per typ. |
+| `POST` | `/api/nodes/command/` | ✅ Bearer JWT (user) | Użytkownik wysyła komendę do konkretnego urządzenia końcowego. Waliduje legalność komendy dla danego `peripheral_type` oraz parametr czasu. Kolejkuje polecenie (status `pending`) do odebrania przez heartbeat. Czas zawsze podawany w minutach. | `{"device_id":"2137", "node_id":"Pico_01", "gpio":1, "command":["TURN_ON_FOR", 480]}` | Status `201`. Zakolejkowane polecenie z polem `status: pending`. |
+| `POST` | `/api/nodes/heartbeat/` | ✅ Bearer JWT (device) | Gateway odbiera wszystkie zakolejkowane komendy (`pending`). Oznacza je jako `delivered`. Żadnego payloadu — tożsamość urządzenia wynika z JWT. | Brak payloadu | Status `200`. `{"device_id":"2137", "pending_count": 5, "commands": [...]}` |
 
 ### `MODUŁ: API / NODES /` – Planowane (Faza 2)
 
 | Planowana Metoda | Oczekiwana docelowa struktura Endpointa | Rodzaj i Autoryzacja | Skonceptowany Wsad / Payload dla JSON |
 |---|---|---|---|
-| POST | `/api/nodes/telemetry/` | ✅ Ścisła z Poświadczeniem stacji (JWT urządzenia)  | `{"node_id": "Pico_01", "temp": 24.5, "humidity": 60, "light": 850}` |
-| GET | `/api/nodes/status/` | ✅ Potwierdzona sesja Webapp | Brak ładunku POST |
-| POST | `/api/nodes/command/` | ✅ Webapp Bearer/Session | `{"target_node": "RPi_HQ", "command": ["WATER_PUMP_ON", "10_MIN"]}` |
-| POST | `/api/nodes/heartbeat/` | ✅ JWT urządzenia | Heartbeat z Jednostki Centralnej, zwraca zakolejkowane komendy |
+| POST | `/api/nodes/telemetry/` | ✅ JWT urządzenia | `{"node_id": "Pico_01", "temp": 24.5, "humidity": 60, "light": 850}` |
+| GET | `/api/nodes/status/` | ✅ JWT użytkownika | Brak ładunku POST |
 
 ---
 
 ## 5. Rozwój w przyszłości
 
-1. **Faza 2 – Telemetria i sterowanie:** Endpointy `telemetry/`, `command/`, `heartbeat/` oraz modele pomiarów (temperatura, wilgotność, natężenie światła). Wykresy na dashboardzie.
+1. **Faza 2 – Telemetria i sterowanie:** Endpointy `telemetry/`, `command/`, `heartbeat/` oraz modele pomiarów (temperatura, wilgotność, natężenie światła). Wykresy na dashboardzie. Panel sterowania wysyłający komendy do urządzeń końcowych (LAMP / SPRINKLER).
 2. **Faza 3 – Współdzielenie uprawnień:** Generowanie kodów zaproszeniowych (`share-code/`), dołączanie do istniejącej Jednostki Centralnej (`claim-shared/`), zarządzanie rolami per urządzenie.
-3. **Dashboard:** Podmiana placeholderów na aktywne widgety z danymi z czujników i panel sterowania.
+3. **Dashboard:** Podmiana placeholderów na aktywne widgety — listę lamp i zraszaczy z przyciskami sterowania, wykresy telemetrii.
 4. **Alerty Discord (Opcjonalnie):** Wysyłanie powiadomień o anomaliach przez WebHook na czat Discord.
