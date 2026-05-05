@@ -1,5 +1,5 @@
 """
-Phase 1 verification: auth, pairing tokens, device registration.
+Phase 1 verification: auth, pairing tokens, device registration + factory reset.
 
 Usage:
     1. Start the dev server:  python manage.py runserver
@@ -90,7 +90,7 @@ print(f"  Status: {s}")
 assert s in (401, 403)
 print("  [PASS]")
 
-# ── 8. Register device (valid token) ──
+# ── 8. Register device (valid token, first time) ──
 print("\n=== 8. Register device ===")
 s, b = req("POST", "/api/nodes/register-device/", {"device_id": "2137", "pairing_token": pairing_token})
 print(f"  Status: {s}")
@@ -99,7 +99,7 @@ assert s == 200
 assert b["device_id"] == "2137"
 assert b["owner"] == "jan"
 assert "access" in b and "refresh" in b
-device_access = b["access"]
+device_access_first = b["access"]
 print("  [PASS]")
 
 # ── 9. Reuse consumed token ──
@@ -116,21 +116,43 @@ print(f"  Status: {s}")
 assert s == 400
 print("  [PASS]")
 
-# ── 11. Register duplicate device ──
-print("\n=== 11. Duplicate device_id ===")
-# Generate a new token first
+# ── 11. Factory reset — owner re-registers the same device ──
+print("\n=== 11. Factory reset: owner re-registers device ===")
 s, b = req("POST", "/api/nodes/pairing-token/", token=jan_access)
-new_token = b["token"]
-s, b = req("POST", "/api/nodes/register-device/", {"device_id": "2137", "pairing_token": new_token})
+assert s == 201
+repair_token = b["token"]
+s, b = req("POST", "/api/nodes/register-device/", {"device_id": "2137", "pairing_token": repair_token})
 print(f"  Status: {s}")
-assert s == 400
+print(f"  device_id: {b.get('device_id')}, owner: {b.get('owner')}")
+assert s == 200, f"Expected 200 on re-registration, got {s}: {b}"
+assert b["device_id"] == "2137"
+assert b["owner"] == "jan"
+assert "access" in b and "refresh" in b
+device_access_second = b["access"]
+assert device_access_second != device_access_first, "New JWT should differ from the old one"
 print("  [PASS]")
 
-# ── 12. Validation: short password ──
-print("\n=== 12. Registration validation (short password) ===")
+# ── 12. Factory reset — non-owner cannot hijack device ──
+print("\n=== 12. Factory reset: non-owner hijack attempt ===")
+# Register a second user
+s, b = req("POST", "/api/accounts/register/", {"username": "hacker", "email": "hacker@x.com", "password": "SilneHaslo123"})
+assert s == 201
+hacker_access = b["access"]
+# Hacker generates a pairing token
+s, b = req("POST", "/api/nodes/pairing-token/", token=hacker_access)
+assert s == 201
+hacker_token = b["token"]
+# Hacker tries to re-register jan's device
+s, b = req("POST", "/api/nodes/register-device/", {"device_id": "2137", "pairing_token": hacker_token})
+print(f"  Status: {s}")
+assert s == 403, f"Expected 403 on unauthorized re-registration, got {s}: {b}"
+print("  [PASS]")
+
+# ── 13. Validation: short password ──
+print("\n=== 13. Registration validation (short password) ===")
 s, b = req("POST", "/api/accounts/register/", {"username": "bad", "email": "bad@x.com", "password": "short"})
 print(f"  Status: {s}")
 assert s == 400
 print("  [PASS]")
 
-print("\n✅ All 12 tests passed!")
+print("\n✅ All 13 tests passed!")
