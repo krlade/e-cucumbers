@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nodes_extras %}
 
 {% block title %}{{ node.name }} — E-Cucumbers{% endblock %}
 
@@ -193,6 +194,72 @@
         color: var(--gray-600);
     }
 
+    /* ── Sensor pin cards ──────────────────────────── */
+    .sensor-pins-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.85rem;
+    }
+    .sensor-pin-card {
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 1rem 1.1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .sensor-pin-card:hover {
+        border-color: var(--green-500);
+        box-shadow: 0 0 0 3px rgba(34,197,94,0.1);
+    }
+    .sensor-pin-num {
+        font-family: 'Courier New', monospace;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--gray-900);
+    }
+    .sensor-pin-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        margin-top: 0.2rem;
+    }
+    .sensor-meta-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
+    .smb-unit { background: var(--green-100); color: var(--green-800); }
+    .smb-type { background: #e0f2fe; color: #0369a1; }
+    .smb-range { background: #fef9c3; color: #713f12; }
+    .sensor-pin-value {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--green-700);
+        letter-spacing: -0.02em;
+        line-height: 1;
+        margin: 0.3rem 0 0.1rem;
+    }
+    .sensor-pin-value .unit {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--green-500);
+        margin-left: 0.2rem;
+    }
+    .sensor-pin-value-none {
+        font-size: 0.78rem;
+        color: var(--gray-400);
+        font-style: italic;
+    }
+    .smb-pending { background: #fef3c7; color: #92400e; }
+
+
     /* ── Empty state ────────────────────────────────────── */
     .empty-hint {
         color: var(--gray-400);
@@ -288,6 +355,93 @@
         color: white;
     }
     .ctrl-btn-amber:hover { background: #b45309; }
+
+    /* ── API result display ─────────────────────────────── */
+    .api-result {
+        display: inline-block;
+        background: var(--gray-100);
+        border-radius: var(--radius);
+        padding: 0.3rem 0.75rem;
+        font-size: 0.8rem;
+        font-family: 'Courier New', monospace;
+        color: var(--gray-700);
+        word-break: break-all;
+        max-width: 480px;
+        transition: background 0.2s;
+    }
+    .api-result.ok  { background: var(--green-100); color: var(--green-800); }
+    .api-result.err { background: #fee2e2; color: #991b1b; }
+
+    /* ── Scheduler panel ───────────────────────────── */
+    .sched-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        margin-top: 0.75rem;
+    }
+    .sched-table th {
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.4rem 0.6rem;
+        border-bottom: 2px solid var(--gray-100);
+    }
+    .sched-table td {
+        padding: 0.5rem 0.6rem;
+        border-bottom: 1px solid var(--gray-100);
+        color: var(--gray-700);
+        vertical-align: middle;
+    }
+    .sched-table tr:last-child td { border-bottom: none; }
+    .sched-table tr.disabled td { opacity: 0.45; }
+    .sched-badge {
+        display: inline-block;
+        padding: 0.15rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .sched-badge-on  { background: var(--green-100); color: var(--green-700); }
+    .sched-badge-off { background: var(--gray-200);  color: var(--gray-500); }
+    .sched-add-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: flex-end;
+        padding: 0.75rem 0;
+        border-top: 1px solid var(--gray-100);
+        margin-top: 0.5rem;
+    }
+    .sched-add-form label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .sched-select {
+        padding: 0.45rem 0.7rem;
+        border: 1px solid var(--gray-300);
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        font-family: inherit;
+        background: white;
+        cursor: pointer;
+        transition: border-color 0.15s;
+    }
+    .sched-select:focus {
+        outline: none;
+        border-color: var(--green-500);
+        box-shadow: 0 0 0 3px rgba(34,197,94,0.15);
+    }
 </style>
 {% endblock %}
 
@@ -378,9 +532,52 @@
         {% endif %}
     </div>
 
-    <!-- GPIO pins -->
+    <!-- Sensor pins (pin_formats from get_pins + get_format) -->
     <div class="data-card">
-        <h2>Stan Pinów GPIO</h2>
+        <h2>Piny sensoryczne</h2>
+        {% if pin_formats %}
+            <div class="sensor-pins-grid">
+            {% for pin, fmt in pin_formats.items %}
+                <div class="sensor-pin-card">
+                    <div class="sensor-pin-num">📍 Pin {{ pin }}</div>
+
+                    {# Ostatnia znana wartość pinu #}
+                    {% with val=pin_values|dict_get:pin %}
+                    {% if val is not None %}
+                        <div class="sensor-pin-value">
+                            {{ val }}{% if fmt and fmt.unit %}<span class="unit">{{ fmt.unit }}</span>{% endif %}
+                        </div>
+                    {% else %}
+                        <div class="sensor-pin-value-none">brak pomiaru</div>
+                    {% endif %}
+                    {% endwith %}
+
+                    {# Metadane formatu #}
+                    {% if fmt %}
+                    <div class="sensor-pin-meta">
+                        {% if fmt.type %}
+                        <span class="sensor-meta-badge smb-type">{{ fmt.type }}</span>
+                        {% endif %}
+                        {% if fmt.min is not None and fmt.max is not None %}
+                        <span class="sensor-meta-badge smb-range">{{ fmt.min }}&thinsp;…&thinsp;{{ fmt.max }}</span>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="sensor-pin-meta">
+                        <span class="sensor-meta-badge smb-pending">⏳ oczekiwanie na format…</span>
+                    </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-hint">Brak znanych pinów &mdash; wywołaj get_pins aby pobrać listę.</p>
+        {% endif %}
+    </div>
+
+    <!-- GPIO pins (HIGH/LOW state) -->
+    <div class="data-card">
+        <h2>Stan wyjść GPIO</h2>
         {% if node.pins %}
             <div class="pins-grid">
                 {% for pin, val in node.pins.items %}
@@ -390,7 +587,7 @@
                 {% endfor %}
             </div>
         {% else %}
-            <p class="empty-hint">Brak zarejestrowanych pinów GPIO dla tego węzła.</p>
+            <p class="empty-hint">Brak zarejestrowanych wyjść GPIO dla tego węzła.</p>
         {% endif %}
     </div>
     <!-- Control panel -->
@@ -480,5 +677,174 @@
         {% endif %}
     </div>
 
+    <!-- API Info panel -->
+    <div class="ctrl-card" id="api-info-panel">
+        <h2>Informacje API węzła</h2>
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Piny GPIO</span>
+            <button
+                id="btn-get-pins"
+                class="ctrl-btn ctrl-btn-gray"
+                onclick="fetchApiInfo('pins', this)"
+            >📋 get_pins</button>
+            <code id="result-pins" class="api-result"></code>
+        </div>
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Format pomiarów</span>
+            <input
+                id="input-get-format-arg"
+                type="number"
+                placeholder="argument"
+                class="ctrl-input"
+                style="width:100px;"
+            >
+            <button
+                id="btn-get-format"
+                class="ctrl-btn ctrl-btn-gray"
+                onclick="fetchApiInfo('format', this)"
+            >📐 get_format</button>
+            <code id="result-format" class="api-result"></code>
+        </div>
+    </div>
+
+    <!-- Scheduler panel -->
+    <div class="ctrl-card" id="scheduler-panel">
+        <h2>⏰ Harmonogram komend (Cron)</h2>
+
+        {# ── Lista istniejących harmonogramów ── #}
+        {% if schedules %}
+        <table class="sched-table">
+            <thead>
+                <tr>
+                    <th>Komenda</th>
+                    <th>Argument</th>
+                    <th>Co [s]</th>
+                    <th>Status</th>
+                    <th>Ostatnie wyk.</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for sc in schedules %}
+                <tr class="{% if not sc.enabled %}disabled{% endif %}">
+                    <td><code>{{ sc.command }}</code></td>
+                    <td>{{ sc.argument|default:"—" }}</td>
+                    <td>{{ sc.interval_seconds }}</td>
+                    <td>
+                        {% if sc.enabled %}
+                            <span class="sched-badge sched-badge-on">● aktywny</span>
+                        {% else %}
+                            <span class="sched-badge sched-badge-off">● wstrzymany</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:0.8rem; color:var(--gray-400);">
+                        {{ sc.last_run|date:"d.m.Y H:i:s"|default:"—" }}
+                    </td>
+                    <td style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                        <form method="POST" action="{% url 'schedule_toggle' node.name sc.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="ctrl-btn ctrl-btn-gray" style="padding:0.3rem 0.6rem; font-size:0.75rem;">
+                                {% if sc.enabled %}⏸{% else %}▶{% endif %}
+                            </button>
+                        </form>
+                        <form method="POST" action="{% url 'schedule_delete' node.name sc.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="ctrl-btn ctrl-btn-red" style="padding:0.3rem 0.6rem; font-size:0.75rem;"
+                                onclick="return confirm('Usunąć harmonogram?')">
+                                🗑
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="empty-hint" style="margin-bottom:0.5rem;">Brak zaplanowanych komend dla tego węzła.</p>
+        {% endif %}
+
+        {# ── Formularz dodawania #}
+        <form method="POST" action="{% url 'schedule_add' node.name %}" class="sched-add-form" id="sched-add-form">
+            {% csrf_token %}
+            <label>
+                Komenda
+                <select name="command" id="sched-cmd" class="sched-select" onchange="onSchedCmdChange(this)">
+                    {% for cmd in schedulable_commands %}
+                        <option value="{{ cmd }}">{{ cmd }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label id="sched-arg-label">
+                Argument (int)
+                <input type="number" name="argument" id="sched-arg" class="ctrl-input" placeholder="np. 5" style="width:90px;">
+            </label>
+            <label>
+                Co [s]
+                <input type="number" name="interval_seconds" class="ctrl-input" min="1" placeholder="np. 60" required style="width:90px;">
+            </label>
+            <button type="submit" class="ctrl-btn ctrl-btn-green">➕ Dodaj</button>
+        </form>
+    </div>
+
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── API panel ────────────────────────────────────────────────────────────
+function fetchApiInfo(endpoint, btn) {
+    const nodeName = '{{ node.name|escapejs }}';
+    const resultEl = document.getElementById('result-' + endpoint);
+    btn.disabled = true;
+    resultEl.textContent = '…';
+    resultEl.className = 'api-result';
+
+    let url = `/api/nodes/${nodeName}/${endpoint}/`;
+    if (endpoint === 'format') {
+        const arg = document.getElementById('input-get-format-arg').value.trim();
+        if (!arg) {
+            resultEl.textContent = 'error: podaj argument (int)';
+            resultEl.className = 'api-result err';
+            btn.disabled = false;
+            return;
+        }
+        url += `?argument=${encodeURIComponent(arg)}`;
+    }
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            if (data.result === 'error') {
+                resultEl.textContent = 'error: ' + (data.detail || '?');
+                resultEl.className = 'api-result err';
+            } else {
+                resultEl.textContent = data.result;
+                resultEl.className = 'api-result ok';
+            }
+        })
+        .catch(err => {
+            resultEl.textContent = 'fetch error: ' + err;
+            resultEl.className = 'api-result err';
+        })
+        .finally(() => { btn.disabled = false; });
+}
+
+// ── Scheduler form ───────────────────────────────────────────────────────
+const INT_ARG_COMMANDS = new Set({{ schedulable_int_arg_commands|safe }});
+
+function onSchedCmdChange(sel) {
+    const argLabel = document.getElementById('sched-arg-label');
+    const argInput = document.getElementById('sched-arg');
+    const needsArg = INT_ARG_COMMANDS.has(sel.value);
+    argLabel.style.display = needsArg ? 'flex' : 'none';
+    argInput.required = needsArg;
+    if (!needsArg) argInput.value = '';
+}
+
+// Ustaw stan pola argumentu przy ładowaniu strony
+document.addEventListener('DOMContentLoaded', () => {
+    const sel = document.getElementById('sched-cmd');
+    if (sel) onSchedCmdChange(sel);
+});
+</script>
 {% endblock %}

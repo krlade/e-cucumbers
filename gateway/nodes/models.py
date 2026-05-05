@@ -38,6 +38,18 @@ class Node(models.Model):
         verbose_name="Stan pinów GPIO",
         help_text="Słownik {numer_pinu: wartość} odzwierciedlający aktualny stan wyjść GPIO.",
     )
+    pin_formats = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Formaty pinów sensorycznych",
+        help_text="Słownik {numer_pinu: {type, unit, min, max}} z metadanymi pomiarów.",
+    )
+    pin_values = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Ostatnie wartości pinów",
+        help_text="Słownik {numer_pinu: ostatnia_wartość} aktualizowany przy każdym pomiarze.",
+    )
     last_data = models.JSONField(
         null=True,
         blank=True,
@@ -80,3 +92,55 @@ class Node(models.Model):
         if seconds < 86400:
             return f"{seconds // 3600} h temu"
         return f"{seconds // 86400} d temu"
+
+
+# Komendy dostępne w schedulerze (bez argumentu / z argumentem int)
+SCHEDULABLE_COMMANDS_NO_ARG = ["set_on", "set_off", "echo", "get_pins"]
+SCHEDULABLE_COMMANDS_INT_ARG = ["pin_on", "pin_off", "change_delay", "get_format"]
+SCHEDULABLE_COMMANDS = SCHEDULABLE_COMMANDS_NO_ARG + SCHEDULABLE_COMMANDS_INT_ARG
+
+
+class ScheduledCommand(models.Model):
+    """
+    Zaplanowane (cykliczne) wywołanie komendy MQTT dla danego węzła.
+    Scheduler wykonuje komendę co `interval_seconds` sekund.
+    """
+    node_name = models.CharField(
+        max_length=100,
+        verbose_name="Węzeł",
+        db_index=True,
+    )
+    command = models.CharField(
+        max_length=50,
+        verbose_name="Komenda",
+        choices=[(c, c) for c in SCHEDULABLE_COMMANDS],
+    )
+    argument = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Argument (int)",
+        help_text="Wymagany dla: pin_on, pin_off, change_delay, get_format.",
+    )
+    interval_seconds = models.PositiveIntegerField(
+        verbose_name="Interwał [s]",
+        help_text="Co ile sekund komenda ma być wysyłana.",
+    )
+    enabled = models.BooleanField(
+        default=True,
+        verbose_name="Aktywny",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_run = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Ostatnie uruchomienie",
+    )
+
+    class Meta:
+        verbose_name = "Zaplanowana komenda"
+        verbose_name_plural = "Zaplanowane komendy"
+        ordering = ["node_name", "command"]
+
+    def __str__(self):
+        arg_str = f"({self.argument})" if self.argument is not None else ""
+        return f"{self.node_name} › {self.command}{arg_str} co {self.interval_seconds}s"
