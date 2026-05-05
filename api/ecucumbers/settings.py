@@ -1,14 +1,20 @@
+from django.conf.global_settings import CSRF_TRUSTED_ORIGINS
 from pathlib import Path
 from datetime import timedelta
+from dotenv import load_dotenv
+load_dotenv()
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-ecucumbers-dev-key-change-in-production"
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-ecucumbers-dev-key-change-in-production")
 
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ["*"] if DEBUG else os.getenv("ALLOWED_HOSTS", "").split(",")
+
+CSRF_TRUSTED_ORIGINS = ["https://localhost:3000"] if DEBUG else os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
 
 # --- Installed Apps ---
 
