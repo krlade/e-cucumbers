@@ -70,6 +70,41 @@
     {% endif %}
 </div>
 
+<!-- Zarejestrowane Jednostki Centralne -->
+<h2 style="margin: 2rem 0 1rem; font-size: 1.1rem; color: var(--green-800); font-weight: 600;">
+    Twoje Jednostki Centralne
+</h2>
+
+{% if devices %}
+<div style="display: flex; flex-direction: column; gap: 0.75rem;">
+    {% for d in devices %}
+    <div style="background: white; border: 1px solid var(--gray-200); border-radius: 0.5rem; padding: 1rem 1.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+            <span style="font-family: monospace; font-size: 1rem; font-weight: 700; color: var(--green-700);">
+                {{ d.unit.device_id }}
+            </span>
+            <span style="font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px;
+                {% if d.role == 'admin' %}background: var(--green-100); color: var(--green-800);{% else %}background: var(--gray-100); color: var(--gray-600);{% endif %}">
+                {{ d.role }}
+            </span>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--gray-500);">
+            Zarejestrowano: {{ d.unit.registered_at|date:"d.m.Y H:i" }}
+            &nbsp;·&nbsp;
+            Lampy: <strong>{{ d.lamp_count }}</strong>
+            &nbsp;·&nbsp;
+            Zraszacze: <strong>{{ d.sprinkler_count }}</strong>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div style="background: var(--gray-50); border: 1px dashed var(--gray-300); border-radius: 0.5rem;
+            padding: 1.5rem; text-align: center; color: var(--gray-500); font-size: 0.875rem;">
+    Brak zarejestrowanych urządzeń. Użyj tokenu parowania, aby podłączyć Jednostkę Centralną.
+</div>
+{% endif %}
+
 <script>
     function getCookie(name) {
         const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');

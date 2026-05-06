@@ -79,7 +79,10 @@ class DeviceOwnership(models.Model):
 
 
 class ControllableNode(models.Model):
-    """Urządzenie peryferyjne podłączone do pinu GPIO Jednostki Centralnej."""
+    """Węzeł końcowy (np. Pico) podłączony do Jednostki Centralnej.
+
+    Każdy węzeł ma dokładnie 1 czujnik (sensor_type) i opcjonalnie 1 urządzenie sterowane (gpio + peripheral_type).
+    """
 
     TYPE_LAMP = "LAMP"
     TYPE_SPRINKLER = "SPRINKLER"
@@ -88,8 +91,16 @@ class ControllableNode(models.Model):
         (TYPE_SPRINKLER, "Zraszacz"),
     ]
 
+    SENSOR_TEMPERATURE = "temperature"
+    SENSOR_HUMIDITY    = "humidity"
+    SENSOR_LIGHT       = "light"
+    SENSOR_CHOICES = [
+        (SENSOR_TEMPERATURE, "Temperatura (°C)"),
+        (SENSOR_HUMIDITY,    "Wilgotność (%)"),
+        (SENSOR_LIGHT,       "Natężenie światła (lux)"),
+    ]
+
     # Legalne komendy per typ urządzenia.
-    # params=[] oznacza brak wymaganego parametru; params z "key":"time" oznacza wymagany czas.
     COMMANDS = {
         TYPE_LAMP: [
             {"name": "TURN_ON",     "params": []},
@@ -105,20 +116,34 @@ class ControllableNode(models.Model):
         CentralUnit, on_delete=models.CASCADE, related_name="peripherals"
     )
     node_id = models.CharField(max_length=64, help_text="ID węzła końcowego, np. 'Pico_01'")
-    gpio = models.PositiveSmallIntegerField(help_text="Numer pinu GPIO")
-    peripheral_type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    gpio = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Numer pinu GPIO (tylko dla węzłów sterowanych)"
+    )
+    peripheral_type = models.CharField(
+        max_length=16, choices=TYPE_CHOICES, null=True, blank=True
+    )
+    sensor_type = models.CharField(
+        max_length=16, choices=SENSOR_CHOICES, null=True, blank=True,
+        help_text="Typ czujnika zamontowanego w węźle (dokładnie 1 czujnik lub brak)"
+    )
     registered_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("gateway", "node_id", "gpio")
+        unique_together = ("gateway", "node_id")
 
     @property
     def allowed_commands(self):
         return self.COMMANDS.get(self.peripheral_type, [])
 
     def __str__(self):
-        return f"{self.peripheral_type} @ {self.gateway.device_id}/{self.node_id} GPIO{self.gpio}"
+        parts = []
+        if self.peripheral_type:
+            parts.append(f"{self.peripheral_type} GPIO{self.gpio}")
+        if self.sensor_type:
+            parts.append(f"sensor={self.sensor_type}")
+        desc = ", ".join(parts) or "no role"
+        return f"[{desc}] @ {self.gateway.device_id}/{self.node_id}"
 
 
 class QueuedCommand(models.Model):
@@ -138,7 +163,6 @@ class QueuedCommand(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="issued_commands"
     )
     command = models.CharField(max_length=32, help_text="Nazwa komendy, np. 'TURN_ON_FOR'")
-    # Czas jako opcjonalny parametr (godziny dla lamp, minuty dla zraszaczy)
     time = models.PositiveIntegerField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -150,3 +174,36 @@ class QueuedCommand(models.Model):
     def __str__(self):
         param = f" time={self.time}" if self.time is not None else ""
         return f"{self.command}{param} -> {self.peripheral} [{self.status}]"
+
+
+class TelemetryReading(models.Model):
+    """Odczyt z czujnika węzła końcowego. Każdy węzeł (Pico) ma 1 czujnik.
+
+    Rekordy są tylko dopisywane (append-only) — nigdy nie nadpisywane.
+    """
+
+    SENSOR_TEMPERATURE = "temperature"
+    SENSOR_HUMIDITY    = "humidity"
+    SENSOR_LIGHT       = "light"
+    SENSOR_CHOICES = [
+        (SENSOR_TEMPERATURE, "Temperatura (°C)"),
+        (SENSOR_HUMIDITY,    "Wilgotność (%)"),
+        (SENSOR_LIGHT,       "Natężenie światła (lux)"),
+    ]
+
+    gateway     = models.ForeignKey(
+        CentralUnit, on_delete=models.CASCADE, related_name="telemetry_readings"
+    )
+    node_id     = models.CharField(max_length=64, help_text="ID węzła, np. 'Pico_01'")
+    sensor_type = models.CharField(max_length=16, choices=SENSOR_CHOICES)
+    value       = models.FloatField()
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+        indexes = [
+            models.Index(fields=["gateway", "node_id", "-recorded_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.sensor_type}={self.value} @ {self.gateway.device_id}/{self.node_id}"

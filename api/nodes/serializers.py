@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PairingToken, CentralUnit, ControllableNode, QueuedCommand
+from .models import PairingToken, CentralUnit, ControllableNode, QueuedCommand, TelemetryReading
 
 
 class PairingTokenResponseSerializer(serializers.ModelSerializer):
@@ -43,14 +43,32 @@ class PeripheralSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ControllableNode
-        fields = ["id", "node_id", "gpio", "peripheral_type", "allowed_commands", "updated_at"]
+        fields = ["id", "node_id", "gpio", "peripheral_type", "sensor_type", "allowed_commands", "updated_at"]
         read_only_fields = fields
 
 
 class RegisterPeripheralItemSerializer(serializers.Serializer):
     node_id = serializers.CharField(max_length=64)
-    gpio = serializers.IntegerField(min_value=0, max_value=40)
-    peripheral_type = serializers.ChoiceField(choices=ControllableNode.TYPE_CHOICES)
+    gpio = serializers.IntegerField(min_value=0, max_value=40, required=False, allow_null=True)
+    peripheral_type = serializers.ChoiceField(
+        choices=ControllableNode.TYPE_CHOICES, required=False, allow_null=True
+    )
+    sensor_type = serializers.ChoiceField(
+        choices=ControllableNode.SENSOR_CHOICES, required=False, allow_null=True
+    )
+
+    def validate(self, data):
+        has_peripheral = data.get("gpio") is not None and data.get("peripheral_type") is not None
+        has_sensor = data.get("sensor_type") is not None
+        if not has_peripheral and not has_sensor:
+            raise serializers.ValidationError(
+                "Każdy węzeł musi mieć co najmniej czujnik (sensor_type) lub urządzenie sterowane (gpio + peripheral_type)."
+            )
+        if (data.get("gpio") is None) != (data.get("peripheral_type") is None):
+            raise serializers.ValidationError(
+                "Pola gpio i peripheral_type muszą być podane razem lub oba pominięte."
+            )
+        return data
 
 
 class RegisterPeripheralsSerializer(serializers.Serializer):
@@ -147,4 +165,23 @@ class QueuedCommandSerializer(serializers.ModelSerializer):
     class Meta:
         model = QueuedCommand
         fields = ["id", "node_id", "gpio", "peripheral_type", "command", "time", "status", "created_at"]
+        read_only_fields = fields
+
+
+# ── Telemetry ──
+
+class TelemetrySerializer(serializers.Serializer):
+    """Payload wysylany przez gateway z odczytem czujnika.
+
+    sensor_type NIE jest podawany — jest pobierany z rejestracji węzła (ControllableNode.sensor_type).
+    """
+    node_id = serializers.CharField(max_length=64)
+    value   = serializers.FloatField()
+
+
+class TelemetryReadingSerializer(serializers.ModelSerializer):
+    """Odpowiedz po zapisaniu odczytu."""
+    class Meta:
+        model  = TelemetryReading
+        fields = ["id", "node_id", "sensor_type", "value", "recorded_at"]
         read_only_fields = fields
