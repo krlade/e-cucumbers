@@ -53,6 +53,7 @@ def _post(path: str, body: dict, token: str | None = None) -> dict:
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "User-Agent": "ecucumbers-gateway/1.0",
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
