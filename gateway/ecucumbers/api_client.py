@@ -68,6 +68,8 @@ def _post(path: str, body: dict, token: str | None = None) -> dict:
         except Exception:
             detail = body_bytes.decode(errors="replace")
         raise RuntimeError(f"HTTP {e.code}: {detail}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"Błąd sieci/połączenia: {e.reason}") from e
 
 
 # ---------------------------------------------------------------------------

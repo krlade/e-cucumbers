@@ -78,20 +78,31 @@ def init_scheduler():
     sched.start()
     logger.info("[Scheduler] Uruchomiono APScheduler.")
 
-    try:
-        from django.db import connection
-        table_names = connection.introspection.table_names()
-        if "nodes_scheduledcommand" not in table_names:
-            logger.warning("[Scheduler] Tabela nodes_scheduledcommand nie istnieje jeszcze — pomijam ładowanie zadań.")
-            return
+    def _load_jobs_when_ready():
+        from django.apps import apps
+        import time
+        # Czekaj na zakończenie inicjalizacji Django
+        while not apps.ready:
+            time.sleep(0.1)
 
-        from nodes.models import ScheduledCommand
-        active = ScheduledCommand.objects.filter(enabled=True)
-        for sc in active:
-            _add_job(sc)
-        logger.info("[Scheduler] Załadowano %d aktywnych zadań.", active.count())
-    except Exception as exc:
-        logger.exception("[Scheduler] Błąd ładowania zadań z bazy: %s", exc)
+        try:
+            from django.db import connection
+            table_names = connection.introspection.table_names()
+            if "nodes_scheduledcommand" not in table_names:
+                logger.warning("[Scheduler] Tabela nodes_scheduledcommand nie istnieje jeszcze — pomijam ładowanie zadań.")
+                return
+
+            from nodes.models import ScheduledCommand
+            active = ScheduledCommand.objects.filter(enabled=True)
+            for sc in active:
+                _add_job(sc)
+            logger.info("[Scheduler] Załadowano %d aktywnych zadań.", active.count())
+        except Exception as exc:
+            logger.exception("[Scheduler] Błąd ładowania zadań z bazy: %s", exc)
+
+    import threading
+    t = threading.Thread(target=_load_jobs_when_ready, daemon=True)
+    t.start()
 
 
 def shutdown_scheduler():
