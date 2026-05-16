@@ -670,6 +670,16 @@
             >📐 get_format</button>
             <code id="result-format" class="api-result"></code>
         </div>
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Kategoria czujnika</span>
+            <select class="ctrl-input" style="width: 200px;" onchange="setSensorKind(this)">
+                <option value="">-- nie wybrano --</option>
+                <option value="temperature" {% if node.sensor_kind == "temperature" %}selected{% endif %}>Temperatura (°C)</option>
+                <option value="humidity" {% if node.sensor_kind == "humidity" %}selected{% endif %}>Wilgotność (%)</option>
+                <option value="light" {% if node.sensor_kind == "light" %}selected{% endif %}>Natężenie światła (lux)</option>
+            </select>
+            <code id="result-sensor-kind" class="api-result"></code>
+        </div>
     </div>
 
     <!-- Logs panel -->
@@ -720,6 +730,37 @@ function fetchApiInfo(endpoint, btn) {
 }
 
 // ── Logs Panel ───────────────────────────────────────────────────────────
+function setSensorKind(selectEl) {
+    const nodeName = '{{ node.name|escapejs }}';
+    const resultEl = document.getElementById('result-sensor-kind');
+    resultEl.textContent = 'zapisywanie...';
+    resultEl.className = 'api-result';
+    
+    let formData = new FormData();
+    formData.append('sensor_kind', selectEl.value);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    fetch(`/api/nodes/${nodeName}/set_sensor_kind/`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.result === 'ok') {
+            resultEl.textContent = 'zapisano';
+            resultEl.className = 'api-result ok';
+            setTimeout(() => { if (resultEl.textContent === 'zapisano') resultEl.textContent = ''; }, 2000);
+        } else {
+            resultEl.textContent = 'błąd: ' + (data.detail || '?');
+            resultEl.className = 'api-result err';
+        }
+    })
+    .catch(err => {
+        resultEl.textContent = 'błąd sieci';
+        resultEl.className = 'api-result err';
+    });
+}
+
 function toggleLogs() {
     const container = document.getElementById('logs-container');
     const btn = document.getElementById('btn-toggle-logs');

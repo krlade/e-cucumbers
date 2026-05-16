@@ -122,6 +122,21 @@ def node_get_status(request, name: str):
     except Exception as exc:
         return JsonResponse({"result": "error", "detail": str(exc)}, status=500)
 
+@login_required
+def node_set_sensor_kind(request, name: str):
+    """POST /api/nodes/<name>/set_sensor_kind/ — ustawia wybraną kategorię sensora."""
+    if request.method != "POST":
+        return JsonResponse({"result": "error", "detail": "Wymagana metoda POST."}, status=405)
+    node = get_object_or_404(Node, name=name)
+    kind = request.POST.get("sensor_kind", "")
+    valid_kinds = [k for k, v in Node.SENSOR_CHOICES] + [""]
+    if kind not in valid_kinds:
+        return JsonResponse({"result": "error", "detail": "Nieprawidłowy typ sensora."}, status=400)
+        
+    node.sensor_kind = kind if kind else None
+    node.save()
+    return JsonResponse({"result": "ok", "sensor_kind": node.sensor_kind})
+
 
 # ---------------------------------------------------------------------------
 # Scheduler CRUD

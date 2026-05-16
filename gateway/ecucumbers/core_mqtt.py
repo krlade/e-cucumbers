@@ -116,14 +116,26 @@ class Device:
         if command == "get_pins":
             try:
                 import ast
+                import sqlite3 as _sqlite3
                 pins_list = ast.literal_eval(str(result))
                 if pins_list:
-                    p = int(pins_list[0]) # Bierzemy tylko pierwszy
+                    p = int(pins_list[0]) # Bierzemy tylko pierwszy jako sensor
                     if self.sensor_pin != p:
                         self.sensor_pin = p
                     self._sync_to_db()
                     self._add_log("Auto get_format()")
                     self.get_format()
+                    
+                    with _sqlite3.connect(DB_PATH) as con:
+                        node_id_row = con.execute("SELECT id FROM nodes_node WHERE name = ?", (self.name,)).fetchone()
+                        if node_id_row:
+                            node_id = node_id_row[0]
+                            for switch_pin in pins_list[1:]:
+                                con.execute("""
+                                    INSERT INTO nodes_switch (node_id, switch_id, state, switch_type)
+                                    VALUES (?, ?, 0, 'LAMP')
+                                    ON CONFLICT(node_id, switch_id) DO NOTHING
+                                """, (node_id, int(switch_pin)))
             except Exception as e:
                 self._add_log(f"Błąd parsowania get_pins: {e}")
 

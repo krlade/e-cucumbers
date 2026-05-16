@@ -45,8 +45,18 @@ class Node(models.Model):
         help_text="Ostatni payload odebrany na topic /device/<name>/data.",
     )
     
+    SENSOR_TEMPERATURE = "temperature"
+    SENSOR_HUMIDITY    = "humidity"
+    SENSOR_LIGHT       = "light"
+    SENSOR_CHOICES = [
+        (SENSOR_TEMPERATURE, "Temperatura (°C)"),
+        (SENSOR_HUMIDITY,    "Wilgotność (%)"),
+        (SENSOR_LIGHT,       "Natężenie światła (lux)"),
+    ]
+
     # Pojedynczy pin pomiarowy węzła
     sensor_pin = models.IntegerField(null=True, blank=True, verbose_name="Pin sensoryczny")
+    sensor_kind = models.CharField(max_length=50, choices=SENSOR_CHOICES, blank=True, null=True, verbose_name="Kategoria pomiaru")
     sensor_type = models.CharField(max_length=50, blank=True, null=True, verbose_name="Typ pomiaru")
     sensor_unit = models.CharField(max_length=20, blank=True, null=True, verbose_name="Jednostka")
     sensor_min_value = models.FloatField(blank=True, null=True, verbose_name="Wartość min")
@@ -89,6 +99,28 @@ class Node(models.Model):
         if seconds < 86400:
             return f"{seconds // 3600} h temu"
         return f"{seconds // 86400} d temu"
+
+
+class Switch(models.Model):
+    TYPE_LAMP = "LAMP"
+    TYPE_SPRINKLER = "SPRINKLER"
+    TYPE_CHOICES = [
+        (TYPE_LAMP, "Lampa"),
+        (TYPE_SPRINKLER, "Zraszacz"),
+    ]
+
+    node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="switches", verbose_name="Węzeł")
+    switch_id = models.IntegerField(verbose_name="ID Switcha / Pin")
+    state = models.BooleanField(default=False, verbose_name="Stan")
+    switch_type = models.CharField(max_length=50, choices=TYPE_CHOICES, default=TYPE_LAMP, verbose_name="Typ")
+
+    class Meta:
+        verbose_name = "Przełącznik"
+        verbose_name_plural = "Przełączniki"
+        unique_together = ("node", "switch_id")
+
+    def __str__(self):
+        return f"{self.node.name} - Pin {self.switch_id} ({self.get_switch_type_display()})"
 
 
 # Komendy dostępne w schedulerze (bez argumentu / z argumentem int)
