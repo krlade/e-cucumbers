@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Parowanie API — E-Cucumbers{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pairing-page {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+
+    .pairing-hero {
+        margin-bottom: 2rem;
+    }
+    .pairing-hero h1 {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--green-800);
+    }
+    .pairing-hero p {
+        color: var(--gray-500);
+        margin-top: 0.3rem;
+        font-size: 0.9rem;
+    }
+
+    /* Status card */
+    .status-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        box-shadow: var(--shadow);
+        margin-bottom: 1.5rem;
+    }
+    .status-card h2 {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--gray-700);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--gray-100);
+        font-size: 0.875rem;
+    }
+    .status-row:last-child { border-bottom: none; }
+    .status-label { color: var(--gray-500); font-weight: 500; }
+    .status-value { color: var(--gray-900); font-family: monospace; }
+
+    /* Paired / not-paired badge */
+    .badge-paired {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        background: var(--green-100);
+        color: var(--green-800);
+    }
+    .badge-unpaired {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        background: #fef2f2;
+        color: #b91c1c;
+    }
+    .badge-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    /* Register card */
+    .register-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        box-shadow: var(--shadow);
+    }
+    .register-card h2 {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--gray-700);
+        margin-bottom: 0.5rem;
+    }
+    .register-card .hint {
+        font-size: 0.8rem;
+        color: var(--gray-500);
+        margin-bottom: 1.2rem;
+        line-height: 1.5;
+    }
+    .register-card .hint code {
+        background: var(--gray-100);
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.78rem;
+    }
+    .token-row {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .token-input {
+        flex: 1;
+        padding: 0.6rem 0.9rem;
+        border: 1px solid var(--gray-300);
+        border-radius: var(--radius);
+        font-size: 0.9rem;
+        font-family: monospace;
+        letter-spacing: 0.05em;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .token-input:focus {
+        border-color: var(--green-500);
+        box-shadow: 0 0 0 3px rgba(34,197,94,0.15);
+    }
+    .btn-pair {
+        padding: 0.6rem 1.4rem;
+        background: var(--green-700);
+        color: white;
+        border: none;
+        border-radius: var(--radius);
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .btn-pair:hover { background: var(--green-800); }
+
+    .steps {
+        margin-top: 1.5rem;
+        padding-top: 1.2rem;
+        border-top: 1px solid var(--gray-100);
+    }
+    .steps h3 {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.75rem;
+    }
+    .step-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .step-item {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+        font-size: 0.85rem;
+        color: var(--gray-700);
+    }
+    .step-num {
+        flex-shrink: 0;
+        width: 22px;
+        height: 22px;
+        background: var(--green-700);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pairing-page">
+
+    <div class="pairing-hero">
+        <h1>🔗 Parowanie Gateway ↔ API</h1>
+        <p>Połącz ten gateway z serwerem API, aby móc odbierać komendy od użytkowników.</p>
+    </div>
+
+    <!-- Status -->
+    <div class="status-card">
+        <h2>📡 Status połączenia</h2>
+
+        <div class="status-row">
+            <span class="status-label">Stan</span>
+            <span class="status-value">
+                {% if api_status.paired %}
+                <span class="badge-paired"><span class="badge-dot"></span>Sparowany</span>
+                {% else %}
+                <span class="badge-unpaired"><span class="badge-dot"></span>Niesparowany</span>
+                {% endif %}
+            </span>
+        </div>
+
+        <div class="status-row">
+            <span class="status-label">URL API</span>
+            <span class="status-value">{{ api_url }}</span>
+        </div>
+
+        <div class="status-row">
+            <span class="status-label">Device ID</span>
+            <span class="status-value">{{ device_id }}</span>
+        </div>
+
+        <div class="status-row">
+            <span class="status-label">Interwał heartbeat</span>
+            <span class="status-value">co {{ heartbeat_interval }}s</span>
+        </div>
+
+        <div class="status-row">
+            <span class="status-label">Ostatni heartbeat</span>
+            <span class="status-value">
+                {% if api_status.last_heartbeat %}
+                    {{ api_status.last_heartbeat }}
+                {% else %}
+                    <em style="color: var(--gray-400);">—</em>
+                {% endif %}
+            </span>
+        </div>
+
+        {% if api_status.last_error %}
+        <div class="status-row">
+            <span class="status-label">Ostatni błąd</span>
+            <span class="status-value" style="color: #b91c1c; font-size: 0.8rem;">{{ api_status.last_error }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Rejestracja -->
+    <div class="register-card">
+        <h2>🔑 Rejestracja z tokenem parowania</h2>
+        <p class="hint">
+            Wygeneruj token w panelu API jako zalogowany użytkownik:
+            <code>POST /api/nodes/pairing-token/</code>.
+            Token jest ważny przez 15 minut. Wklej go poniżej i kliknij <strong>Paruj</strong>.
+        </p>
+
+        <form method="post" action="{% url 'pairing_register' %}">
+            {% csrf_token %}
+            <div class="token-row">
+                <input
+                    id="pairing_token"
+                    class="token-input"
+                    type="text"
+                    name="pairing_token"
+                    placeholder="TEMP-XXXX"
+                    maxlength="32"
+                    autocomplete="off"
+                    required
+                >
+                <button class="btn-pair" type="submit">Paruj</button>
+            </div>
+        </form>
+
+        <div class="steps">
+            <h3>Jak to działa?</h3>
+            <div class="step-list">
+                <div class="step-item">
+                    <span class="step-num">1</span>
+                    <span>Użytkownik w API generuje token parowania (<code>POST /api/nodes/pairing-token/</code>).</span>
+                </div>
+                <div class="step-item">
+                    <span class="step-num">2</span>
+                    <span>Gateway wysyła token + swoje <code>device_id</code> do API i otrzymuje JWT.</span>
+                </div>
+                <div class="step-item">
+                    <span class="step-num">3</span>
+                    <span>Co {{ heartbeat_interval }}s gateway odpytuje API (<code>POST /api/nodes/heartbeat/</code>) i pobiera zakolejkowane komendy.</span>
+                </div>
+                <div class="step-item">
+                    <span class="step-num">4</span>
+                    <span>Komendy (np. <code>TURN_ON</code>, <code>WATER_PUMP_ON</code>) są tłumaczone na komunikaty MQTT i wysyłane do urządzeń peryferyjnych.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

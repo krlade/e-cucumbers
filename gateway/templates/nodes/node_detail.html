@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nodes_extras %}
 
 {% block title %}{{ node.name }} — E-Cucumbers{% endblock %}
 
@@ -193,6 +194,72 @@
         color: var(--gray-600);
     }
 
+    /* ── Sensor pin cards ──────────────────────────── */
+    .sensor-pins-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.85rem;
+    }
+    .sensor-pin-card {
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 1rem 1.1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .sensor-pin-card:hover {
+        border-color: var(--green-500);
+        box-shadow: 0 0 0 3px rgba(34,197,94,0.1);
+    }
+    .sensor-pin-num {
+        font-family: 'Courier New', monospace;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--gray-900);
+    }
+    .sensor-pin-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        margin-top: 0.2rem;
+    }
+    .sensor-meta-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
+    .smb-unit { background: var(--green-100); color: var(--green-800); }
+    .smb-type { background: #e0f2fe; color: #0369a1; }
+    .smb-range { background: #fef9c3; color: #713f12; }
+    .sensor-pin-value {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--green-700);
+        letter-spacing: -0.02em;
+        line-height: 1;
+        margin: 0.3rem 0 0.1rem;
+    }
+    .sensor-pin-value .unit {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--green-500);
+        margin-left: 0.2rem;
+    }
+    .sensor-pin-value-none {
+        font-size: 0.78rem;
+        color: var(--gray-400);
+        font-style: italic;
+    }
+    .smb-pending { background: #fef3c7; color: #92400e; }
+
+
     /* ── Empty state ────────────────────────────────────── */
     .empty-hint {
         color: var(--gray-400);
@@ -288,6 +355,93 @@
         color: white;
     }
     .ctrl-btn-amber:hover { background: #b45309; }
+
+    /* ── API result display ─────────────────────────────── */
+    .api-result {
+        display: inline-block;
+        background: var(--gray-100);
+        border-radius: var(--radius);
+        padding: 0.3rem 0.75rem;
+        font-size: 0.8rem;
+        font-family: 'Courier New', monospace;
+        color: var(--gray-700);
+        word-break: break-all;
+        max-width: 480px;
+        transition: background 0.2s;
+    }
+    .api-result.ok  { background: var(--green-100); color: var(--green-800); }
+    .api-result.err { background: #fee2e2; color: #991b1b; }
+
+    /* ── Scheduler panel ───────────────────────────── */
+    .sched-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        margin-top: 0.75rem;
+    }
+    .sched-table th {
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.4rem 0.6rem;
+        border-bottom: 2px solid var(--gray-100);
+    }
+    .sched-table td {
+        padding: 0.5rem 0.6rem;
+        border-bottom: 1px solid var(--gray-100);
+        color: var(--gray-700);
+        vertical-align: middle;
+    }
+    .sched-table tr:last-child td { border-bottom: none; }
+    .sched-table tr.disabled td { opacity: 0.45; }
+    .sched-badge {
+        display: inline-block;
+        padding: 0.15rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .sched-badge-on  { background: var(--green-100); color: var(--green-700); }
+    .sched-badge-off { background: var(--gray-200);  color: var(--gray-500); }
+    .sched-add-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: flex-end;
+        padding: 0.75rem 0;
+        border-top: 1px solid var(--gray-100);
+        margin-top: 0.5rem;
+    }
+    .sched-add-form label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .sched-select {
+        padding: 0.45rem 0.7rem;
+        border: 1px solid var(--gray-300);
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        font-family: inherit;
+        background: white;
+        cursor: pointer;
+        transition: border-color 0.15s;
+    }
+    .sched-select:focus {
+        outline: none;
+        border-color: var(--green-500);
+        box-shadow: 0 0 0 3px rgba(34,197,94,0.15);
+    }
 </style>
 {% endblock %}
 
@@ -321,16 +475,12 @@
     <div class="stat-grid">
         <div class="stat-card">
             <div class="stat-label">Ostatnia transmisja</div>
-            {% if node.last_seen %}
-                <div class="stat-value" title="{{ node.last_seen|date:'d.m.Y H:i:s' }}">
-                    {{ node.last_seen_ago }}
-                </div>
-                <div style="font-size:0.75rem; color:var(--gray-400); margin-top:0.25rem;">
-                    {{ node.last_seen|date:"d.m.Y H:i:s" }}
-                </div>
-            {% else %}
-                <div class="stat-value muted">Brak danych</div>
-            {% endif %}
+            <div id="status-last-seen-ago" class="stat-value" title="{{ node.last_seen|date:'d.m.Y H:i:s' }}">
+                {% if node.last_seen %}{{ node.last_seen_ago }}{% else %}<span class="muted">Brak danych</span>{% endif %}
+            </div>
+            <div id="status-last-seen" style="font-size:0.75rem; color:var(--gray-400); margin-top:0.25rem;">
+                {% if node.last_seen %}{{ node.last_seen|date:"d.m.Y H:i:s" }}{% endif %}
+            </div>
         </div>
 
         <div class="stat-card">
@@ -353,45 +503,66 @@
 
         <div class="stat-card">
             <div class="stat-label">Piny GPIO</div>
-            <div class="stat-value">{{ node.pins|length }} skonfigurowanych</div>
+            <div class="stat-value" id="status-gpio-count">{{ node.switches.count }} skonfigurowanych</div>
         </div>
     </div>
 
-    <!-- Last data payload -->
-    <div class="data-card">
-        <h2>Ostatnie dane pomiarowe</h2>
-        {% if node.last_data %}
-            {% if node.last_data.items %}
-                {% for key, val in node.last_data.items %}
-                <div class="data-row">
-                    <span class="data-key">{{ key }}</span>
-                    <span class="data-val">{{ val }}</span>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="data-row">
-                    <span class="data-val">{{ node.last_data }}</span>
-                </div>
-            {% endif %}
-        {% else %}
-            <p class="empty-hint">Brak odebranych danych pomiarowych dla tego węzła.</p>
-        {% endif %}
-    </div>
 
-    <!-- GPIO pins -->
+    <!-- Sensor pin -->
     <div class="data-card">
-        <h2>Stan Pinów GPIO</h2>
-        {% if node.pins %}
-            <div class="pins-grid">
-                {% for pin, val in node.pins.items %}
-                    <span class="pin-chip {% if val %}pin-high{% else %}pin-low{% endif %}">
-                        GPIO {{ pin }}: {% if val %}HIGH{% else %}LOW{% endif %}
-                    </span>
-                {% endfor %}
+        <h2>Ostatnie dane</h2>
+        {% with target=live_device|default:node %}
+        {% if target.sensor_pin is not None %}
+            <div class="sensor-pins-grid">
+                <div class="sensor-pin-card">
+                    {# Ostatnia znana wartość pinu #}
+                    <div id="status-sensor-value" class="{% if target.sensor_last_value is not None %}sensor-pin-value{% else %}sensor-pin-value-none{% endif %}">
+                        {% if target.sensor_last_value is not None %}
+                            {{ target.sensor_last_value }}{% if target.sensor_unit %}<span class="unit">{{ target.sensor_unit }}</span>{% endif %}
+                        {% else %}
+                            brak pomiaru
+                        {% endif %}
+                    </div>
+
+                    {# Metadane formatu #}
+                    {% if target.sensor_type or target.sensor_unit or target.sensor_min_value is not None %}
+                    <div class="sensor-pin-meta">
+                        {% if target.sensor_type %}
+                        <span class="sensor-meta-badge smb-type">{{ target.sensor_type }}</span>
+                        {% endif %}
+                        {% if target.sensor_min_value is not None and target.sensor_max_value is not None %}
+                        <span class="sensor-meta-badge smb-range">{{ target.sensor_min_value }}&thinsp;…&thinsp;{{ target.sensor_max_value }}</span>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="sensor-pin-meta">
+                        <span class="sensor-meta-badge smb-pending">⏳ oczekiwanie na format…</span>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
         {% else %}
-            <p class="empty-hint">Brak zarejestrowanych pinów GPIO dla tego węzła.</p>
+            <p class="empty-hint">Brak przypisanego pinu sensorycznego &mdash; wywołaj get_pins aby pobrać informację.</p>
         {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- GPIO pins (HIGH/LOW state) -->
+    <div class="data-card">
+        <h2>Stan wyjść GPIO</h2>
+        <div id="switches-container">
+            {% if node.switches.exists %}
+                <div class="pins-grid">
+                    {% for switch in node.switches.all %}
+                        <span class="pin-chip {% if switch.state %}pin-high{% else %}pin-low{% endif %}">
+                            GPIO {{ switch.switch_id }}: {% if switch.state %}HIGH{% else %}LOW{% endif %}
+                        </span>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-hint">Brak zarejestrowanych wyjść GPIO dla tego węzła.</p>
+            {% endif %}
+        </div>
     </div>
     <!-- Control panel -->
     <div class="ctrl-card">
@@ -480,5 +651,220 @@
         {% endif %}
     </div>
 
+    <!-- API Info panel -->
+    <div class="ctrl-card" id="api-info-panel">
+        <h2>Informacje API węzła</h2>
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Piny GPIO</span>
+            <button
+                id="btn-get-pins"
+                class="ctrl-btn ctrl-btn-gray"
+                onclick="fetchApiInfo('pins', this)"
+            >📋 get_pins</button>
+            <code id="result-pins" class="api-result"></code>
+        </div>
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Format pomiarów</span>
+            <button
+                id="btn-get-format"
+                class="ctrl-btn ctrl-btn-gray"
+                onclick="fetchApiInfo('format', this)"
+            >📐 get_format</button>
+            <code id="result-format" class="api-result"></code>
+        </div>
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Kategoria czujnika</span>
+            <select class="ctrl-input" style="width: 200px;" onchange="setSensorKind(this)">
+                <option value="">-- nie wybrano --</option>
+                <option value="temperature" {% if node.sensor_kind == "temperature" %}selected{% endif %}>Temperatura (°C)</option>
+                <option value="humidity" {% if node.sensor_kind == "humidity" %}selected{% endif %}>Wilgotność (%)</option>
+                <option value="light" {% if node.sensor_kind == "light" %}selected{% endif %}>Natężenie światła (lux)</option>
+            </select>
+            <code id="result-sensor-kind" class="api-result"></code>
+        </div>
+    </div>
+
+    <!-- Logs panel -->
+    <div class="ctrl-card" id="logs-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0;">
+            <h2>📜 Logi urządzenia</h2>
+            <button class="ctrl-btn ctrl-btn-gray" onclick="toggleLogs()" id="btn-toggle-logs" style="padding:0.4rem 0.8rem; font-size:0.85rem;">Pokaż</button>
+        </div>
+        
+        <div id="logs-container" style="display: none; margin-top: 1rem; background: var(--gray-800); padding: 0.8rem; border-radius: 6px; border: 1px solid var(--gray-700); max-height: 300px; overflow-y: auto;">
+            <ul id="logs-ul" style="list-style: none; margin: 0; padding: 0; font-family: monospace; font-size: 0.85rem;">
+                <li style="color: var(--gray-400);">Wczytywanie...</li>
+            </ul>
+        </div>
+    </div>
+
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── API panel ────────────────────────────────────────────────────────────
+function fetchApiInfo(endpoint, btn) {
+    const nodeName = '{{ node.name|escapejs }}';
+    const resultEl = document.getElementById('result-' + endpoint);
+    btn.disabled = true;
+    resultEl.textContent = '…';
+    resultEl.className = 'api-result';
+
+    let url = `/api/nodes/${nodeName}/${endpoint}/`;
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            if (data.result === 'error') {
+                resultEl.textContent = 'error: ' + (data.detail || '?');
+                resultEl.className = 'api-result err';
+            } else {
+                resultEl.textContent = data.result;
+                resultEl.className = 'api-result ok';
+            }
+        })
+        .catch(err => {
+            resultEl.textContent = 'fetch error: ' + err;
+            resultEl.className = 'api-result err';
+        })
+        .finally(() => { btn.disabled = false; });
+}
+
+// ── Logs Panel ───────────────────────────────────────────────────────────
+function setSensorKind(selectEl) {
+    const nodeName = '{{ node.name|escapejs }}';
+    const resultEl = document.getElementById('result-sensor-kind');
+    resultEl.textContent = 'zapisywanie...';
+    resultEl.className = 'api-result';
+    
+    let formData = new FormData();
+    formData.append('sensor_kind', selectEl.value);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    fetch(`/api/nodes/${nodeName}/set_sensor_kind/`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.result === 'ok') {
+            resultEl.textContent = 'zapisano';
+            resultEl.className = 'api-result ok';
+            setTimeout(() => { if (resultEl.textContent === 'zapisano') resultEl.textContent = ''; }, 2000);
+        } else {
+            resultEl.textContent = 'błąd: ' + (data.detail || '?');
+            resultEl.className = 'api-result err';
+        }
+    })
+    .catch(err => {
+        resultEl.textContent = 'błąd sieci';
+        resultEl.className = 'api-result err';
+    });
+}
+
+function toggleLogs() {
+    const container = document.getElementById('logs-container');
+    const btn = document.getElementById('btn-toggle-logs');
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        btn.textContent = 'Ukryj';
+    } else {
+        container.style.display = 'none';
+        btn.textContent = 'Pokaż';
+    }
+}
+
+let logsInterval = null;
+
+function refreshLogs() {
+    const nodeName = '{{ node.name|escapejs }}';
+    fetch(`/api/nodes/${nodeName}/logs/`)
+        .then(r => r.json())
+        .then(data => {
+            const ul = document.getElementById('logs-ul');
+            if (ul && data.logs) {
+                ul.innerHTML = '';
+                if (data.logs.length === 0) {
+                    ul.innerHTML = '<li style="color: var(--gray-400);">Brak logów.</li>';
+                } else {
+                    const reversed = [...data.logs].reverse();
+                    reversed.forEach(log => {
+                        const li = document.createElement('li');
+                        li.style.marginBottom = '0.3rem';
+                        li.style.color = 'var(--gray-300)';
+                        li.textContent = log;
+                        ul.appendChild(li);
+                    });
+                }
+            }
+        })
+        .catch(err => console.error("Error fetching logs:", err));
+}
+
+function refreshStatus() {
+    const nodeName = '{{ node.name|escapejs }}';
+    fetch(`/api/nodes/${nodeName}/status/`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.result !== 'error') {
+                const agoEl = document.getElementById('status-last-seen-ago');
+                const lastSeenEl = document.getElementById('status-last-seen');
+                const valEl = document.getElementById('status-sensor-value');
+                
+                if (agoEl) {
+                    if (data.last_seen_ago !== "nigdy") {
+                        agoEl.textContent = data.last_seen_ago;
+                        agoEl.title = data.last_seen;
+                    } else {
+                        agoEl.innerHTML = '<span class="muted">Brak danych</span>';
+                        agoEl.title = '';
+                    }
+                }
+                if (lastSeenEl && data.last_seen) {
+                    lastSeenEl.textContent = data.last_seen;
+                }
+                
+                if (valEl) {
+                    if (data.sensor_last_value !== null) {
+                        let unitHtml = data.sensor_unit ? `<span class="unit">${data.sensor_unit}</span>` : '';
+                        valEl.className = 'sensor-pin-value';
+                        valEl.innerHTML = `${data.sensor_last_value}${unitHtml}`;
+                    } else {
+                        valEl.className = 'sensor-pin-value-none';
+                        valEl.textContent = 'brak pomiaru';
+                    }
+                }
+                
+                if (data.switches) {
+                    const countEl = document.getElementById('status-gpio-count');
+                    if (countEl) countEl.textContent = `${data.switches.length} skonfigurowanych`;
+                    
+                    const swContainer = document.getElementById('switches-container');
+                    if (swContainer) {
+                        if (data.switches.length > 0) {
+                            let html = '<div class="pins-grid">';
+                            data.switches.forEach(sw => {
+                                let cname = sw.state ? 'pin-high' : 'pin-low';
+                                let tname = sw.state ? 'HIGH' : 'LOW';
+                                html += `<span class="pin-chip ${cname}">GPIO ${sw.id}: ${tname}</span>`;
+                            });
+                            html += '</div>';
+                            swContainer.innerHTML = html;
+                        } else {
+                            swContainer.innerHTML = '<p class="empty-hint">Brak zarejestrowanych wyjść GPIO dla tego węzła.</p>';
+                        }
+                    }
+                }
+            }
+        })
+        .catch(err => console.error("Error fetching status:", err));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    refreshLogs();
+    logsInterval = setInterval(refreshLogs, 1000);
+    setInterval(refreshStatus, 5000);
+});
+</script>
 {% endblock %}

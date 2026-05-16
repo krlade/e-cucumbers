@@ -56,9 +56,13 @@ class RegisterDeviceView(APIView):
                 "access": str(refresh.access_token), "refresh": str(refresh),
             }, status=status.HTTP_200_OK)
 
-        device_user = User.objects.create_user(username=f"device_{device_id}", password=None, is_active=True)
-        device_user.set_unusable_password()
-        device_user.save()
+        device_username = f"device_{device_id}"
+        device_user, created = User.objects.get_or_create(username=device_username)
+        if created:
+            device_user.set_unusable_password()
+            device_user.is_active = True
+            device_user.save()
+            
         unit = CentralUnit.objects.create(device_id=device_id, device_user=device_user)
         DeviceOwnership.objects.create(user=owner, device=unit, role=DeviceOwnership.ROLE_ADMIN)
         pairing_token.delete()
