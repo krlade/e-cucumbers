@@ -38,24 +38,20 @@ class Node(models.Model):
         verbose_name="Stan pinów GPIO",
         help_text="Słownik {numer_pinu: wartość} odzwierciedlający aktualny stan wyjść GPIO.",
     )
-    pin_formats = models.JSONField(
-        default=dict,
-        blank=True,
-        verbose_name="Formaty pinów sensorycznych",
-        help_text="Słownik {numer_pinu: {type, unit, min, max}} z metadanymi pomiarów.",
-    )
-    pin_values = models.JSONField(
-        default=dict,
-        blank=True,
-        verbose_name="Ostatnie wartości pinów",
-        help_text="Słownik {numer_pinu: ostatnia_wartość} aktualizowany przy każdym pomiarze.",
-    )
     last_data = models.JSONField(
         null=True,
         blank=True,
         verbose_name="Ostatnie dane pomiarowe",
         help_text="Ostatni payload odebrany na topic /device/<name>/data.",
     )
+    
+    # Pojedynczy pin pomiarowy węzła
+    sensor_pin = models.IntegerField(null=True, blank=True, verbose_name="Pin sensoryczny")
+    sensor_type = models.CharField(max_length=50, blank=True, null=True, verbose_name="Typ pomiaru")
+    sensor_unit = models.CharField(max_length=20, blank=True, null=True, verbose_name="Jednostka")
+    sensor_min_value = models.FloatField(blank=True, null=True, verbose_name="Wartość min")
+    sensor_max_value = models.FloatField(blank=True, null=True, verbose_name="Wartość max")
+    sensor_last_value = models.CharField(max_length=255, blank=True, null=True, verbose_name="Ostatnia wartość")
 
     class Meta:
         verbose_name = "Węzeł"
@@ -144,3 +140,39 @@ class ScheduledCommand(models.Model):
     def __str__(self):
         arg_str = f"({self.argument})" if self.argument is not None else ""
         return f"{self.node_name} › {self.command}{arg_str} co {self.interval_seconds}s"
+
+
+class GatewayToken(models.Model):
+    """
+    Model do przechowywania tokenów JWT gatewaya (access i refresh).
+    Gateway jest jeden, więc używamy tylko jednego rekordu.
+    """
+    access = models.TextField(blank=True, null=True, verbose_name="Access Token")
+    refresh = models.TextField(blank=True, null=True, verbose_name="Refresh Token")
+    device_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="Device ID")
+
+    class Meta:
+        verbose_name = "Token Gatewaya"
+        verbose_name_plural = "Tokeny Gatewaya"
+
+    def __str__(self):
+        return f"Token Gatewaya ({self.device_id or 'Brak ID'})"
+
+    @classmethod
+    def get_tokens(cls):
+        obj, _ = cls.objects.get_or_create(id=1)
+        if obj.access and obj.refresh:
+            return {"access": obj.access, "refresh": obj.refresh, "device_id": obj.device_id}
+        return None
+
+    @classmethod
+    def save_tokens(cls, tokens, device_id=None):
+        obj, _ = cls.objects.get_or_create(id=1)
+        if "access" in tokens:
+            obj.access = tokens["access"]
+        if "refresh" in tokens:
+            obj.refresh = tokens["refresh"]
+        if device_id is not None:
+            obj.device_id = device_id
+        obj.save()
+

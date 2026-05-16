@@ -19,9 +19,6 @@ import urllib.error
 
 logger = logging.getLogger(__name__)
 
-# Ścieżka do pliku z tokenami JWT gatewaya (access + refresh)
-_TOKEN_FILE = os.path.join(os.path.dirname(__file__), '..', '.gateway_tokens.json')
-_TOKEN_FILE = os.path.abspath(_TOKEN_FILE)
 
 # Singleton stanu
 _heartbeat_thread: threading.Thread | None = None
@@ -78,23 +75,22 @@ def _post(path: str, body: dict, token: str | None = None) -> dict:
 # ---------------------------------------------------------------------------
 
 def _load_tokens() -> dict | None:
-    """Wczytuje tokeny JWT z pliku lokalnego."""
-    if not os.path.exists(_TOKEN_FILE):
-        return None
+    """Wczytuje tokeny JWT z bazy danych."""
+    from nodes.models import GatewayToken
     try:
-        with open(_TOKEN_FILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-
-def _save_tokens(tokens: dict):
-    """Zapisuje tokeny JWT do pliku lokalnego."""
-    try:
-        with open(_TOKEN_FILE, "w") as f:
-            json.dump(tokens, f)
+        return GatewayToken.get_tokens()
     except Exception as e:
-        logger.error("[ApiClient] Nie można zapisać tokenów: %s", e)
+        logger.error("[ApiClient] Błąd podczas ładowania tokenów z bazy: %s", e)
+        return None
+
+
+def _save_tokens(tokens: dict, device_id: str | None = None):
+    """Zapisuje tokeny JWT do bazy danych."""
+    from nodes.models import GatewayToken
+    try:
+        GatewayToken.save_tokens(tokens, device_id=device_id)
+    except Exception as e:
+        logger.error("[ApiClient] Nie można zapisać tokenów w bazie: %s", e)
 
 
 def _refresh_access_token(refresh_token: str) -> str | None:
@@ -143,7 +139,7 @@ def register(pairing_token: str, device_id: str) -> dict:
         "pairing_token": pairing_token,
     })
     tokens = {"access": result["access"], "refresh": result["refresh"]}
-    _save_tokens(tokens)
+    _save_tokens(tokens, device_id=device_id)
     status["paired"] = True
     status["device_id"] = device_id
     status["last_error"] = None
@@ -262,26 +258,17 @@ def _heartbeat_loop(interval_seconds: int):
     logger.info("[ApiClient] Wątek heartbeat zatrzymany.")
 
 
-def init_api_client():
-    """
-    Inicjalizuje klienta API:
-    - Sprawdza czy gateway jest sparowany (tokeny istnieją)
-    - Uruchamia wątek heartbeat jeśli sparowany
-    """
-    global _heartbeat_thread
-
-    from django.conf import settings
-    interval = getattr(settings, "API_HEARTBEAT_INTERVAL", 30)
-    status["api_url"] = _api_url()
-
+def _async_init(interval):
     tokens = _load_tokens()
     if tokens:
         status["paired"] = True
+        status["device_id"] = tokens.get("device_id")
         logger.info("[ApiClient] Znaleziono tokeny — gateway jest sparowany. Uruchamiam heartbeat.")
     else:
         logger.info("[ApiClient] Brak tokenów — gateway nie jest sparowany. Wywołaj register().")
 
     _stop_event.clear()
+    global _heartbeat_thread
     _heartbeat_thread = threading.Thread(
         target=_heartbeat_loop,
         args=(interval,),
@@ -289,6 +276,19 @@ def init_api_client():
         name="ApiHeartbeat",
     )
     _heartbeat_thread.start()
+
+
+def init_api_client():
+    """
+    Inicjalizuje klienta API (asynchronicznie, by uniknąć błędu bazy w ready()):
+    - Sprawdza czy gateway jest sparowany (tokeny istnieją)
+    - Uruchamia wątek heartbeat jeśli sparowany
+    """
+    from django.conf import settings
+    interval = getattr(settings, "API_HEARTBEAT_INTERVAL", 30)
+    status["api_url"] = _api_url()
+
+    threading.Thread(target=_async_init, args=(interval,), daemon=True).start()
 
 
 def shutdown_api_client():

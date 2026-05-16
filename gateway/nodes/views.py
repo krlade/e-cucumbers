@@ -57,12 +57,6 @@ def node_detail(request, name: str):
         return redirect("node_detail", name=name)
 
     schedules = ScheduledCommand.objects.filter(node_name=name)
-    pin_formats = (
-        live_device.pin_formats if live_device is not None else (node.pin_formats or {})
-    )
-    pin_values = (
-        live_device.pin_values if live_device is not None else (node.pin_values or {})
-    )
     return render(request, "nodes/node_detail.html", {
         "node": node,
         "live_device": live_device,
@@ -70,8 +64,6 @@ def node_detail(request, name: str):
         "schedules": schedules,
         "schedulable_commands": SCHEDULABLE_COMMANDS,
         "schedulable_int_arg_commands": SCHEDULABLE_COMMANDS_INT_ARG,
-        "pin_formats": pin_formats,
-        "pin_values": pin_values,
     })
 
 

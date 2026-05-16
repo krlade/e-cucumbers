@@ -532,34 +532,32 @@
         {% endif %}
     </div>
 
-    <!-- Sensor pins (pin_formats from get_pins + get_format) -->
+    <!-- Sensor pin -->
     <div class="data-card">
-        <h2>Piny sensoryczne</h2>
-        {% if pin_formats %}
+        <h2>Pin sensoryczny</h2>
+        {% with target=live_device|default:node %}
+        {% if target.sensor_pin is not None %}
             <div class="sensor-pins-grid">
-            {% for pin, fmt in pin_formats.items %}
                 <div class="sensor-pin-card">
-                    <div class="sensor-pin-num">📍 Pin {{ pin }}</div>
+                    <div class="sensor-pin-num">📍 Pin {{ target.sensor_pin }}</div>
 
                     {# Ostatnia znana wartość pinu #}
-                    {% with val=pin_values|dict_get:pin %}
-                    {% if val is not None %}
+                    {% if target.sensor_last_value is not None %}
                         <div class="sensor-pin-value">
-                            {{ val }}{% if fmt and fmt.unit %}<span class="unit">{{ fmt.unit }}</span>{% endif %}
+                            {{ target.sensor_last_value }}{% if target.sensor_unit %}<span class="unit">{{ target.sensor_unit }}</span>{% endif %}
                         </div>
                     {% else %}
                         <div class="sensor-pin-value-none">brak pomiaru</div>
                     {% endif %}
-                    {% endwith %}
 
                     {# Metadane formatu #}
-                    {% if fmt %}
+                    {% if target.sensor_type or target.sensor_unit or target.sensor_min_value is not None %}
                     <div class="sensor-pin-meta">
-                        {% if fmt.type %}
-                        <span class="sensor-meta-badge smb-type">{{ fmt.type }}</span>
+                        {% if target.sensor_type %}
+                        <span class="sensor-meta-badge smb-type">{{ target.sensor_type }}</span>
                         {% endif %}
-                        {% if fmt.min is not None and fmt.max is not None %}
-                        <span class="sensor-meta-badge smb-range">{{ fmt.min }}&thinsp;…&thinsp;{{ fmt.max }}</span>
+                        {% if target.sensor_min_value is not None and target.sensor_max_value is not None %}
+                        <span class="sensor-meta-badge smb-range">{{ target.sensor_min_value }}&thinsp;…&thinsp;{{ target.sensor_max_value }}</span>
                         {% endif %}
                     </div>
                     {% else %}
@@ -568,11 +566,11 @@
                     </div>
                     {% endif %}
                 </div>
-            {% endfor %}
             </div>
         {% else %}
-            <p class="empty-hint">Brak znanych pinów &mdash; wywołaj get_pins aby pobrać listę.</p>
+            <p class="empty-hint">Brak przypisanego pinu sensorycznego &mdash; wywołaj get_pins aby pobrać informację.</p>
         {% endif %}
+        {% endwith %}
     </div>
 
     <!-- GPIO pins (HIGH/LOW state) -->

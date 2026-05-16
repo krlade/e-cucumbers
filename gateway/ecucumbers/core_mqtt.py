@@ -31,11 +31,15 @@ class Device:
         self.is_sending = False
         self.delay_ms = None
         self.pins = {}
-        # Metadane pinów sensorycznych: {str(pin): {type, unit, min, max}}
-        # None oznacza pin znany (z get_pins), ale format jeszcze nie pobrany
-        self.pin_formats: dict = {}
-        # Ostatnia znana wartość per pin: {str(pin): wartość}
-        self.pin_values: dict = {}
+        
+        # Pojedynczy pin sensoryczny i jego wartości
+        self.sensor_pin = None
+        self.sensor_type = None
+        self.sensor_unit = None
+        self.sensor_min_value = None
+        self.sensor_max_value = None
+        self.sensor_last_value = None
+        self.has_format = False
 
     def _send_command(self, command, arguments=None):
         """Wysyła sformatowaną komendę korzystając z MQTT stacji centralnej."""
@@ -83,39 +87,35 @@ class Device:
     def handle_data(self, data):
         """Aktualizuje stan na podstawie odebranych danych z MQTT (temat: .../data).
         Jeśli data jest słownikiem z kluczami będącymi numerami pinów,
-        aktualizuje również pin_values."""
+        aktualizuje pojedynczy pin pomiarowy węzła."""
         self.last_data = data
         self.last_seen = datetime.datetime.now(datetime.timezone.utc)
-        # Ekstrakcja wartości per pin (gdy data to dict {pin: wartość})
         if isinstance(data, dict):
             for k, v in data.items():
-                self.pin_values[str(k)] = v
+                if self.sensor_pin is None:
+                    self.sensor_pin = int(k)
+                self.sensor_last_value = v
+                break # Zakładamy jeden pin pomiarowy
         print(f"[Urządzenie: {self.name}] Otrzymano nowe dane: {data}")
         self._sync_to_db()
 
     def handle_reply(self, command, result, pin_arg=None):
         """Aktualizuje stan na podstawie odpowiedzi (temat: .../reply)"""
         if command == "get_pins":
-            # result: string '[3, 4, 5]' — lista pinów sensorycznych
             try:
                 import ast
                 pins_list = ast.literal_eval(str(result))
-                new_pins = []
-                for p in pins_list:
-                    key = str(p)
-                    if key not in self.pin_formats:
-                        self.pin_formats[key] = None  # znany, format zostanie pobrane auto
-                        new_pins.append(int(p))
-                self._sync_to_db()
-                # Auto-pobierz format dla każdego nowo wykrytego pinu
-                for p in new_pins:
+                if pins_list:
+                    p = int(pins_list[0]) # Bierzemy tylko pierwszy
+                    if self.sensor_pin != p:
+                        self.sensor_pin = p
+                    self._sync_to_db()
                     print(f"[Urządzenie: {self.name}] Auto get_format({p})")
                     self.get_format(p)
             except Exception as e:
                 print(f"[Urządzenie: {self.name}] Błąd parsowania get_pins: {e}")
 
         elif command == "get_format":
-            # result: dict lub JSON string {type, unit, min, max}
             fmt = None
             if isinstance(result, dict):
                 fmt = result
@@ -125,7 +125,13 @@ class Device:
                 except json.JSONDecodeError:
                     pass
             if fmt is not None and pin_arg is not None:
-                self.pin_formats[str(pin_arg)] = fmt
+                if self.sensor_pin is None:
+                    self.sensor_pin = int(pin_arg)
+                self.sensor_type = fmt.get("type")
+                self.sensor_unit = fmt.get("unit")
+                self.sensor_min_value = fmt.get("min")
+                self.sensor_max_value = fmt.get("max")
+                self.has_format = True
                 self._sync_to_db()
 
         elif result == "ok":
@@ -145,33 +151,42 @@ class Device:
             last_seen_iso = self.last_seen.isoformat() if self.last_seen else None
             last_data_str = json.dumps(self.last_data) if self.last_data is not None else None
             pins_str = json.dumps(self.pins)
-            pin_formats_str = json.dumps(self.pin_formats)
-            pin_values_str = json.dumps(self.pin_values)
+            val_str = str(self.sensor_last_value) if self.sensor_last_value is not None else None
 
             with _sqlite3.connect(DB_PATH) as con:
                 con.execute("""
                     INSERT INTO nodes_node
-                        (name, created_at, last_seen, is_sending, delay_ms, pins, pin_formats, pin_values, last_data)
+                        (name, created_at, last_seen, is_sending, delay_ms, pins, last_data,
+                         sensor_pin, sensor_type, sensor_unit, sensor_min_value, sensor_max_value, sensor_last_value)
                     VALUES
-                        (?, datetime('now'), ?, ?, ?, ?, ?, ?, ?)
+                        (?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(name) DO UPDATE SET
                         last_seen    = excluded.last_seen,
                         is_sending   = excluded.is_sending,
                         delay_ms     = excluded.delay_ms,
                         pins         = excluded.pins,
-                        pin_formats  = excluded.pin_formats,
-                        pin_values   = excluded.pin_values,
-                        last_data    = excluded.last_data
+                        last_data    = excluded.last_data,
+                        sensor_pin   = excluded.sensor_pin,
+                        sensor_type  = excluded.sensor_type,
+                        sensor_unit  = excluded.sensor_unit,
+                        sensor_min_value = excluded.sensor_min_value,
+                        sensor_max_value = excluded.sensor_max_value,
+                        sensor_last_value = excluded.sensor_last_value
                 """, (
                     self.name,
                     last_seen_iso,
                     1 if self.is_sending else 0,
                     self.delay_ms,
                     pins_str,
-                    pin_formats_str,
-                    pin_values_str,
                     last_data_str,
+                    self.sensor_pin,
+                    self.sensor_type,
+                    self.sensor_unit,
+                    self.sensor_min_value,
+                    self.sensor_max_value,
+                    val_str,
                 ))
+
         except Exception as e:
             print(f"[Device:{self.name}] Błąd synchronizacji z DB: {e}")
 
@@ -231,13 +246,12 @@ class Gateway:
                 con.row_factory = _sqlite3.Row
                 # Sprawdź które opcjonalne kolumny istnieją (migracja mogła nie być jeszcze zastosowana)
                 cols = {r[1] for r in con.execute("PRAGMA table_info(nodes_node)").fetchall()}
-                has_pin_formats = "pin_formats" in cols
-                has_pin_values = "pin_values" in cols
-                select_cols = "name, last_data, last_seen, is_sending, delay_ms, pins"
-                if has_pin_formats:
-                    select_cols += ", pin_formats"
-                if has_pin_values:
-                    select_cols += ", pin_values"
+                select_cols = "id, name, last_data, last_seen, is_sending, delay_ms, pins"
+                
+                # Upewniamy się czy mamy te kolumny
+                if "sensor_pin" in cols:
+                    select_cols += ", sensor_pin, sensor_type, sensor_unit, sensor_min_value, sensor_max_value, sensor_last_value"
+                
                 rows = con.execute(f"SELECT {select_cols} FROM nodes_node").fetchall()
 
             for row in rows:
@@ -263,20 +277,26 @@ class Gateway:
                     device.pins = json.loads(raw_pins) if raw_pins else {}
                 except (json.JSONDecodeError, TypeError):
                     device.pins = {}
-                # pin_formats
-                if has_pin_formats:
-                    raw_pf = row["pin_formats"]
+
+                if "sensor_pin" in cols:
+                    device.sensor_pin = row["sensor_pin"]
+                    device.sensor_type = row["sensor_type"]
+                    device.sensor_unit = row["sensor_unit"]
+                    device.sensor_min_value = row["sensor_min_value"]
+                    device.sensor_max_value = row["sensor_max_value"]
+                    
+                    raw_val = row["sensor_last_value"]
                     try:
-                        device.pin_formats = json.loads(raw_pf) if raw_pf else {}
-                    except (json.JSONDecodeError, TypeError):
-                        device.pin_formats = {}
-                # pin_values
-                if has_pin_values:
-                    raw_pv = row["pin_values"]
-                    try:
-                        device.pin_values = json.loads(raw_pv) if raw_pv else {}
-                    except (json.JSONDecodeError, TypeError):
-                        device.pin_values = {}
+                        if raw_val is not None:
+                            v = float(raw_val)
+                            if v.is_integer(): v = int(v)
+                            device.sensor_last_value = v
+                        else:
+                            device.sensor_last_value = None
+                    except (ValueError, TypeError):
+                        device.sensor_last_value = raw_val
+
+                    device.has_format = any(x is not None for x in [device.sensor_type, device.sensor_unit, device.sensor_min_value, device.sensor_max_value])
 
             print(f"[Gateway] Wczytano stan {len(self.devices)} urządzeń z SQLite.")
         except Exception as e:

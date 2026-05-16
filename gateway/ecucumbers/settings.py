@@ -138,3 +138,8 @@ API_DEVICE_ID = os.getenv("API_DEVICE_ID", "gateway-01")
 
 # Interwał heartbeat w sekundach
 API_HEARTBEAT_INTERVAL = int(os.getenv("API_HEARTBEAT_INTERVAL", "30"))
+
+MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt.krlade.dev")
+MQTT_PORT = int(os.getenv("MQTT_PORT", 443))
+MQTT_USER = os.getenv("MQTT_USER", "user")
+MQTT_PASS = os.getenv("MQTT_PASS", "ogorek123!")

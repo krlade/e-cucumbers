@@ -1,13 +1,9 @@
 import os
 import atexit
 from ecucumbers.core_mqtt import Gateway
+from django.conf import settings
 
 # Constants mapped from test scripts
-MQTT_BROKER = "mqtt.krlade.dev"
-MQTT_PORT = 443
-MQTT_USER = "user"
-MQTT_PASS = "ogorek123!"
-
 # Global singleton
 station = None
 
@@ -23,7 +19,7 @@ def init_mqtt():
     if station is None:
         print("[Django MQTT] Inicjalizacja klienta obsługującego sieć sensorów...")
         try:
-            station = Gateway(broker=MQTT_BROKER, port=MQTT_PORT, username=MQTT_USER, password=MQTT_PASS)
+            station = Gateway(broker=settings.MQTT_BROKER, port=settings.MQTT_PORT, username=settings.MQTT_USER, password=settings.MQTT_PASS)
             station.start()
 
             # Zabezpieczenie na wyjście
