@@ -1,6 +1,6 @@
 # E-Cucumbers Webapp
 
-Dokumentacja techniczna dla centralnej części serwerowej (Webapp) projektu **E-Cucumbers**. Projekt ten ma na celu udostępnienie interfejsu webowego (HMI) oraz bezpiecznego API dla Jednostki Centralnej (Raspberry Pi), która kontroluje i agreguje dane z urządzeń końcowych (węzłów bazujących na RPi Pico / ESP32) w inteligentnym systemie hodowli ogórków.
+Dokumentacja techniczna dla centralnej części serwerowej (Webapp) projektu **E-Cucumbers**. Projekt ma na celu udostępnienie interfejsu webowego (HMI) oraz bezpiecznego API dla Jednostki Centralnej (Raspberry Pi), która kontroluje i agreguje dane z urządzeń końcowych (węzłów bazujących na RPi Pico / ESP32) w inteligentnym systemie hodowli ogórków.
 
 ---
 
@@ -26,8 +26,8 @@ Projekt opiera się bazowo na frameworku **Django** i paczce **Django REST Frame
 Dzięki przygotowanym narzędziom konfiguracyjnym, instalacja repozytorium na nowej maszynie jest całkowicie zautomatyzowana (zarówno dla systemu Windows, jak i środowisk Linux/macOS).
 
 1. **Uruchomienie automatycznego skryptu (Windows / Linux):**
-   W leżącym w korzeniu projektu `d:\Code\Projects\api` oknie eksploratora plików zlokalizuj skrypt konfiguracyjny odpowiedni dla Twojego środowiska i go uruchom.
-   
+   W katalogu `api/` zlokalizuj skrypt konfiguracyjny odpowiedni dla Twojego środowiska i go uruchom.
+
    **Na systemie Windows:**
    ```bash
    setup.bat
@@ -36,84 +36,114 @@ Dzięki przygotowanym narzędziom konfiguracyjnym, instalacja repozytorium na no
    ```bash
    bash setup.sh
    ```
-   *Skrypt w sposób łańcuchowy samodzielnie i bezpiecznie zajmie się:*
-   * Stworzeniem izolowanego katalogu ze środowiskiem (tzw. `virtualenv`) do folderu `.venv`
-   * Aktywacją stworzonego środowiska pod maską
-   * Wczytaniem i pobraniem wszystkich pakietów wypisanych w `requirements.txt`
-   * Wywołaniem sub-modułu z jądra bazy (automatyczne relacje i powołanie głównego administratora `admin` + `admin123`)
+   *Skrypt samodzielnie zajmie się:*
+   * Stworzeniem izolowanego środowiska wirtualnego (`.venv`)
+   * Pobraniem wszystkich pakietów z `requirements.txt` (Django, DRF, JWT, drf-spectacular, CORS)
+   * Zastosowaniem wszystkich migracji bazodanowych
+   * Powołaniem głównego konta administratora `admin` / `admin123`
 
-2. **Uruchomienie weryfikacyjnego serwera developerskiego Django:**
-   Aby włączyć platformę po pomyślnej izolacji `setup.bat`, otwórz terminal w głównej ścieżce i uaktywnij środowisko przed komendą runserver:
+2. **Uruchomienie serwera deweloperskiego:**
    ```bash
-   .venv\Scripts\activate
+   .venv\Scripts\activate      # Windows
+   source .venv/bin/activate   # Linux / macOS
    python manage.py runserver
    ```
-   *Teraz interfejs wizualny i interfejs API projektu są udostępniane pod adresem deweloperskim: `http://127.0.0.1:8000`*
+   Serwer dostępny pod: `http://127.0.0.1:8000`
+
+3. **Interaktywna dokumentacja API (Swagger):**
+
+   Po uruchomieniu serwera dostępne są:
+
+   | URL | Opis |
+   |---|---|
+   | `http://127.0.0.1:8000/api/docs/` | Swagger UI — testowanie endpointów w przeglądarce |
+   | `http://127.0.0.1:8000/api/redoc/` | ReDoc — czytelna dokumentacja |
+   | `http://127.0.0.1:8000/api/schema/` | Surowy plik OpenAPI 3.0 (YAML) |
 
 ---
 
 ## 2. Architektura rozwiązań
 
-Aplikacja jest minimalnym rozwiązaniem typu monolith (łączy podział widoków na część webową wspartą o szablony i na interfejsy JSON API) z wyraźnym podziałem odpowiedzialności. 
+Aplikacja jest minimalnym rozwiązaniem typu monolith — łączy widoki HTML (szablony Django) z interfejsami JSON API, z wyraźnym podziałem odpowiedzialności.
 
-* **`ecucumbers/`** - Główny moduł aplikacyjny z definicjami połączeń (zabezpieczenia, ustawienia silnika DRF, instalacja biblioteki JWT dla wtyczki REST, struktura główna routingu bazy). Wszystkie niezbędne porty CORS pozwalające na zrealizowane odpytywanie zewnętrzne na wariantach deweloperskich są zdefiniowane tutaj.
-* **`accounts/`** - Moduł odpowiedzialny wyłącznie za operacje logiczne na profilach (rejestracje kont z mechanizmem walidacyjnym, zarządzanie logowaniem i generowanie docelowych poświadczeń szyfrowanych).
-* **`nodes/`** - Sub-aplikacja obsługująca parowanie, rejestrację i sterowanie Jednostkami Centralnymi (Raspberry Pi). Zawiera modele: `CentralUnit`, `DeviceOwnership` (role admin/viewer), `ControllableNode` (peryferia końcowe z mapowaniem GPIO i legalnymi komendami per typ). Przygotowana na telemetrię i komendy sterujące (Faza 2).
-* **`tests/`** - Folder z testami integracyjnymi weryfikującymi poprawność endpointów.
+* **`ecucumbers/`** — Główny moduł aplikacyjny: ustawienia silnika DRF, konfiguracja JWT, routing główny, CORS, Swagger (drf-spectacular).
+* **`accounts/`** — Moduł operacji na profilach: rejestracja kont, logowanie, generowanie tokenów JWT, zarządzanie rolami użytkowników (panel admina).
+* **`nodes/`** — Sub-aplikacja obsługująca cały cykl życia urządzeń IoT:
+  * `CentralUnit` — zarejestrowane gateway'e (Raspberry Pi)
+  * `DeviceOwnership` — relacja właściciel/współdzielenie z rolami `admin` / `viewer`
+  * `ControllableNode` — węzeł końcowy (Pico): maksymalnie **1 czujnik** (`sensor_type`) i opcjonalnie 1 urządzenie sterowane (`gpio` + `peripheral_type`)
+  * `QueuedCommand` — kolejka komend od użytkownika, odbierana przez gateway przy heartbeat
+  * `TelemetryReading` — append-only logi z czujników; `sensor_type` pochodzi z rejestracji węzła
+* **`tests/`** — Testy integracyjne weryfikujące poprawność endpointów.
 
-Do komunikacji w ramach protokołu REST API używany jest autoryzacyjny zbiór mechanizmów z wtyczką **JWT (JSON Web Tokens)** implementując zrzut kluczy `access` i `refresh`. 
+Do autoryzacji w REST API używany jest **JWT (JSON Web Tokens)** z parą kluczy `access` / `refresh`. Zarówno użytkownicy ludzcy, jak i urządzenia (gateway) używają JWT — urządzenia mają własne konta systemowe (`device_user`).
+
+### Zasada: jeden czujnik na węzeł
+
+Każdy fizyczny węzeł (`node_id`) podłączony do gateway'a może mieć **dokładnie jeden typ czujnika**. Typ czujnika jest deklarowany raz podczas rejestracji węzła (`/register-peripherals/`) i nie jest powtarzany przy każdym odczycie telemetrii. Dzięki temu payload telemetrii jest minimalny: `{"node_id": "Pico_01", "value": 23.5}`.
 
 ---
 
 ## 3. Widoki i funkcjonalności webowe
 
-Do obsługi wizualnego interfejsu (HMI sterującego) dla użytkownika przeglądarki wybrano szablony i mechanizmy HTML sprzęgnięte natywnie z widokami w Django, wykorzystujące dogodnie strukturę dziedziczenia.
-
-* **Wygenerowane zasady widoków na bazie HTML:**
-  * Szablon master: **`base.html`** – plik stanowiący ogólnozakrojony szkielet strony operujący globalną strukturą powtarzaną oraz dołączonym arkuszem stylizujących kompozycji CSS.
-  * Szablon zalogowanego panelu: **`dashboard.html`** - Główny hub powitalny autoryzowanego zarządcy, ukazujący szczegóły podpiętego konta. Zawiera kartę **"Dodaj urządzenie"** umożliwiającą generowanie Tokenu Parowania z odliczaniem czasu ważności (15 min). Ujawnia przycisk panelu sterowania, jeśli obecny stan przypisania usera pozwala na bycie `superuser`.
-  * Szablon adminujący personelem: **`manage_users.html`** - chroniony, zamknięty hub z kontrolką zbiorczej tabeli ról (tzw. masowy przydział uprawnień wielu pracownikom na raz). Posiada mechanizm blokujący odbezpieczenie lub degradację głównego administratora `admin`.
-* **Sesje Webowe w Django:** Systemy obsługujące widoki przeglądarni korzystają z podzespołowego standardu uwierzytelniania wbudowanego w jądro Django. Użytkownik wizualny wykorzystuje tzw. logowanie z wykorzystaniem `LoginView` powiązanym z `sessions`. Wyciąganie tych poświadczeń (jak logowanie widokowe czy formularz rejestracji html) nie generuje zbędnych obciążeń bazy. W razie potyczek, sesja ratuje logikę nadpisywania uprawień.
+* **`base.html`** — Szkielet strony z nawigacją i globalnym CSS (zielony motyw).
+* **`dashboard.html`** — Panel użytkownika: dane konta, generowanie Tokenu Parowania z odliczaniem (15 min), lista zarejestrowanych Jednostek Centralnych z liczbą lamp i zraszaczy, przycisk panelu admina (tylko dla superuser).
+* **`manage_users.html`** — Panel admina: masowe zarządzanie rolami użytkowników (`superuser` / `staff` / `user`), blokada modyfikacji konta `admin`.
 
 ---
 
 ## 4. Dokumentacja API (Endpointy)
 
-Obecne zestawienie docelowych API (posiadają pełne funkcjonalności ułatwiające zestawianie uwierzeytelniań dla poszczególnych modułów systemu IoT do poświadczeń i dalszych kroków autoryzacyjnych):
+> Wszystkie endpointy API można testować interaktywnie przez Swagger UI: `http://127.0.0.1:8000/api/docs/`
 
-### `MODUŁ: API / ACCOUNTS / ` 
+### `MODUŁ: API / ACCOUNTS /`
 
-| Typ w API | Ścieżka (Endpoint) | Autoryzacja | Opis wykonania | Wymagany ładunek wejściowy do zgłoszenia (Tylko JSON) | Typ Odpowiedzi (Standard. HTTP |
+| Metoda | Endpoint | Autoryzacja | Opis | Payload (JSON) | Odpowiedź |
 |---|---|---|---|---|---|
-| `POST` | `/api/accounts/register/` | ❌ Brak | Zleca wniosek utworzenia subkonta | `{"username":"x", "email":"x@x.com", "password":"x"}` | Status `201`. Odsyła parametry konta i dwa Tokeny JWT. |
-| `POST` | `/api/accounts/login/` | ❌ Brak | Autentykacja klienta, wystawia tokeny systemowe. | `{"username":"x", "password":"x"}` | Status `200`. Zawiera wygenerowane: `{"refresh":"<k>", "access":"<k>"}` |
-| `POST` | `/api/accounts/token/refresh/` | ❌ Brak | Odświeża miniony klucz autoryzujący `access`. | `{"refresh":"<twój_działający_odnawiający_token>"}` | Status `200`. Zawiera tylko jeden certyfikat: nowy klucz `"access"`. |
-| `GET` | `/api/accounts/me/` | ✅ Zabezp. Bearer token JWT | Endpoint weryfikacyjny. Testuje i wyrzuca parametry użytkownika, testuje token u centrali w RPi. | Odpytywanie bez JSON, wymóg wprowadzenia nagłówka API `Authorization: Bearer <t_access>`| Status `200`. Odpowiedź autentykacji po weryfikacji toku na profil. |
+| `POST` | `/api/accounts/register/` | ❌ Brak | Rejestracja nowego konta użytkownika | `{"username":"x", "email":"x@x.com", "password":"x"}` | `201` — dane konta + tokeny JWT |
+| `POST` | `/api/accounts/login/` | ❌ Brak | Logowanie, wystawia tokeny JWT | `{"username":"x", "password":"x"}` | `200` — `{"refresh":"...", "access":"..."}` |
+| `POST` | `/api/accounts/token/refresh/` | ❌ Brak | Odświeża wygasły token `access` | `{"refresh":"<token>"}` | `200` — nowy `access` |
+| `GET` | `/api/accounts/me/` | ✅ Bearer JWT (user) | Profil aktualnie zalogowanego użytkownika | — | `200` — dane użytkownika |
 
+### `MODUŁ: API / NODES /`
 
-### `MODUŁ: API / NODES /` – Zaimplementowane
-
-| Typ w API | Ścieżka (Endpoint) | Autoryzacja | Opis wykonania | Wymagany ładunek wejściowy (JSON) | Typ Odpowiedzi |
+| Metoda | Endpoint | Autoryzacja | Opis | Payload (JSON) | Odpowiedź |
 |---|---|---|---|---|---|
-| `POST` | `/api/nodes/pairing-token/` | ✅ Bearer JWT (user) | Generuje tymczasowy Token Parowania (ważny 15 min, format `TEMP-XXXX`), powiązany z kontem użytkownika. | Brak ładunku (pusty POST) | Status `201`. `{"token":"TEMP-8492", "expires_at":"...", "expires_in_seconds": 900}` |
-| `POST` | `/api/nodes/register-device/` | ❌ Brak | Rejestracja lub ponowna rejestracja Jednostki Centralnej po factory reset. Waliduje Token Parowania, tworzy rekord urządzenia, nadaje właścicielowi rolę admin, zwraca JWT dla urządzenia. | `{"device_id":"2137", "pairing_token":"TEMP-8492"}` | Status `200`. `{"device_id":"2137", "owner":"Jan", "access":"<k>", "refresh":"<k>"}` |
-| `POST` | `/api/nodes/register-peripherals/` | ✅ Bearer JWT (device) | Gateway rejestruje swoje peryferia (lampy, zraszacze) z mapowaniem GPIO. Operacja idempotentna (upsert). JWT musi należeć do tego konkretnego gatewaya. | `{"device_id":"2137", "peripherals":[{"node_id":"Pico_01", "gpio":1, "peripheral_type":"LAMP"}]}` | Status `200`. Lista zarejestrowanych peryferiów z legalnymi komendami. |
-| `GET` | `/api/nodes/peripherals/?device_id=2137` | ✅ Bearer JWT (user) | Pobiera listę peryferiów gatewaya. Użytkownik musi mieć dowolną rolę w `DeviceOwnership`. | Brak ładunku | Status `200`. Lista peryferiów z `allowed_commands` per typ. |
-| `POST` | `/api/nodes/command/` | ✅ Bearer JWT (user) | Użytkownik wysyła komendę do konkretnego urządzenia końcowego. Waliduje legalność komendy dla danego `peripheral_type` oraz parametr czasu. Kolejkuje polecenie (status `pending`) do odebrania przez heartbeat. Czas zawsze podawany w minutach. | `{"device_id":"2137", "node_id":"Pico_01", "gpio":1, "command":["TURN_ON_FOR", 480]}` | Status `201`. Zakolejkowane polecenie z polem `status: pending`. |
-| `POST` | `/api/nodes/heartbeat/` | ✅ Bearer JWT (device) | Gateway odbiera wszystkie zakolejkowane komendy (`pending`). Oznacza je jako `delivered`. Żadnego payloadu — tożsamość urządzenia wynika z JWT. | Brak payloadu | Status `200`. `{"device_id":"2137", "pending_count": 5, "commands": [...]}` |
+| `POST` | `/api/nodes/pairing-token/` | ✅ Bearer JWT (user) | Generuje Token Parowania ważny 15 min (`TEMP-XXXX`) | — | `201` — `{"token":"TEMP-8492", "expires_at":"...", "expires_in_seconds":900}` |
+| `POST` | `/api/nodes/register-device/` | ❌ Brak | Rejestruje gateway lub ponownie go rejestruje po factory reset. Tworzy konto systemowe urządzenia i nadaje właścicielowi rolę admin. | `{"device_id":"2137", "pairing_token":"TEMP-8492"}` | `200` — `{"device_id":"2137", "owner":"Jan", "access":"...", "refresh":"..."}` |
+| `POST` | `/api/nodes/register-peripherals/` | ✅ Bearer JWT (device) | Gateway rejestruje węzły końcowe (idempotentne — upsert). Każdy węzeł może mieć czujnik (`sensor_type`) i/lub urządzenie sterowane (`gpio` + `peripheral_type`). | `{"device_id":"2137", "peripherals":[{"node_id":"Pico_01", "gpio":1, "peripheral_type":"LAMP", "sensor_type":"temperature"}]}` | `200` — lista zarejestrowanych węzłów |
+| `GET` | `/api/nodes/peripherals/?device_id=2137` | ✅ Bearer JWT (user) | Lista węzłów gateway'a. Użytkownik musi mieć dowolną rolę w `DeviceOwnership`. | — | `200` — węzły z `allowed_commands` per typ |
+| `POST` | `/api/nodes/command/` | ✅ Bearer JWT (user) | Kolejkuje komendę do węzła końcowego (status `pending`). Czas podawany w minutach. | `{"device_id":"2137", "node_id":"Pico_01", "gpio":1, "command":["TURN_ON_FOR", 480]}` | `201` — zakolejkowana komenda |
+| `POST` | `/api/nodes/heartbeat/` | ✅ Bearer JWT (device) | Gateway odbiera wszystkie komendy `pending` i oznacza je jako `delivered`. Tożsamość gateway'a wynika z JWT. | — | `200` — `{"device_id":"2137", "pending_count":5, "commands":[...]}` |
+| `POST` | `/api/nodes/telemetry/` | ✅ Bearer JWT (device) | Gateway przesyła odczyt z czujnika węzła. `sensor_type` jest pobierany automatycznie z rejestracji węzła — nie trzeba go podawać. | `{"node_id":"Pico_01", "value":23.5}` | `201` — zapisany odczyt z `sensor_type` |
 
-### `MODUŁ: API / NODES /` – Planowane (Faza 2)
+#### Typy urządzeń i ich komendy
 
-| Planowana Metoda | Oczekiwana docelowa struktura Endpointa | Rodzaj i Autoryzacja | Skonceptowany Wsad / Payload dla JSON |
-|---|---|---|---|
-| POST | `/api/nodes/telemetry/` | ✅ JWT urządzenia | `{"node_id": "Pico_01", "temp": 24.5, "humidity": 60, "light": 850}` |
-| GET | `/api/nodes/status/` | ✅ JWT użytkownika | Brak ładunku POST |
+| `peripheral_type` | Dostępne komendy | Parametr |
+|---|---|---|
+| `LAMP` | `TURN_ON`, `TURN_OFF` | — |
+| `LAMP` | `TURN_ON_FOR` | `time` (minuty, wymagany) |
+| `SPRINKLER` | `WATER_PUMP_ON` | `time` (minuty, wymagany) |
+
+#### Typy czujników (`sensor_type`)
+
+| Wartość | Opis |
+|---|---|
+| `temperature` | Temperatura (°C) |
+| `humidity` | Wilgotność (%) |
+| `light` | Natężenie światła (lux) |
 
 ---
 
-## 5. Rozwój w przyszłości
+## 5. Schemat bazy danych
 
-1. **Faza 2 – Telemetria i sterowanie:** Endpointy `telemetry/`, `command/`, `heartbeat/` oraz modele pomiarów (temperatura, wilgotność, natężenie światła). Wykresy na dashboardzie. Panel sterowania wysyłający komendy do urządzeń końcowych (LAMP / SPRINKLER).
-2. **Faza 3 – Współdzielenie uprawnień:** Generowanie kodów zaproszeniowych (`share-code/`), dołączanie do istniejącej Jednostki Centralnej (`claim-shared/`), zarządzanie rolami per urządzenie.
-3. **Dashboard:** Podmiana placeholderów na aktywne widgety — listę lamp i zraszaczy z przyciskami sterowania, wykresy telemetrii.
+![Schemat bazy danych](db-schema-visualization.png)
+
+---
+
+## 6. Rozwój w przyszłości
+
+1. **Faza 2 — Telemetria i sterowanie:** ✅ Zrealizowane — endpointy `telemetry/`, `command/`, `heartbeat/` są gotowe. Pozostaje: wykresy telemetrii na dashboardzie oraz panel sterowania wysyłający komendy bezpośrednio z UI.
+2. **Faza 3 — Współdzielenie uprawnień:** Generowanie kodów zaproszeniowych (`share-code/`), dołączanie do istniejącej Jednostki Centralnej (`claim-shared/`), zarządzanie rolami per urządzenie.
+3. **Dashboard — aktywne widgety:** Podmiana placeholderów na listę lamp i zraszaczy z przyciskami sterowania oraz wykresy telemetrii w czasie rzeczywistym.
 4. **Alerty Discord (Opcjonalnie):** Wysyłanie powiadomień o anomaliach przez WebHook na czat Discord.

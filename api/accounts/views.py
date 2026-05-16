@@ -83,7 +83,23 @@ def register_view(request):
 
 @login_required
 def dashboard_view(request):
-    return render(request, "dashboard.html")
+    from nodes.models import DeviceOwnership, ControllableNode
+    ownerships = (
+        DeviceOwnership.objects
+        .filter(user=request.user)
+        .select_related("device")
+        .order_by("device__registered_at")
+    )
+    devices = []
+    for o in ownerships:
+        peripherals = ControllableNode.objects.filter(gateway=o.device)
+        devices.append({
+            "unit":            o.device,
+            "role":            o.role,
+            "lamp_count":      peripherals.filter(peripheral_type="LAMP").count(),
+            "sprinkler_count": peripherals.filter(peripheral_type="SPRINKLER").count(),
+        })
+    return render(request, "dashboard.html", {"devices": devices})
 
 
 from django.contrib.auth.decorators import user_passes_test

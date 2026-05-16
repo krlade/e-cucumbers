@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import CentralUnit, ControllableNode, DeviceOwnership, PairingToken, QueuedCommand
+from .models import CentralUnit, ControllableNode, DeviceOwnership, PairingToken, QueuedCommand, TelemetryReading
 from .serializers import (
     PeripheralSerializer,
     PairingTokenResponseSerializer,
@@ -13,6 +13,8 @@ from .serializers import (
     RegisterDeviceSerializer,
     RegisterPeripheralsSerializer,
     SendCommandSerializer,
+    TelemetrySerializer,
+    TelemetryReadingSerializer,
 )
 
 
@@ -90,8 +92,12 @@ class RegisterPeripheralsView(APIView):
         registered = []
         for p in peripherals_data:
             obj, _ = ControllableNode.objects.update_or_create(
-                gateway=gateway, node_id=p["node_id"], gpio=p["gpio"],
-                defaults={"peripheral_type": p["peripheral_type"]},
+                gateway=gateway, node_id=p["node_id"],
+                defaults={
+                    "gpio": p.get("gpio"),
+                    "peripheral_type": p.get("peripheral_type"),
+                    "sensor_type": p.get("sensor_type"),
+                },
             )
             registered.append(obj)
 
@@ -196,4 +202,55 @@ class HeartbeatView(APIView):
                 "commands": QueuedCommandSerializer(commands, many=True).data,
             },
             status=status.HTTP_200_OK,
+        )
+
+
+class TelemetryView(APIView):
+    """POST /api/nodes/telemetry/ — gateway wysyla odczyt z czujnika.
+
+    Wymaga JWT urzadzenia. Kazdy wezel (Pico) ma dokladnie 1 czujnik.
+    node_id + JWT (gateway) jednoznacznie identyfikuja zrodlo odczytu.
+    Brak pre-rejestracji sensorow — przyjmujemy dane z kazdego node_id.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        # JWT musi nalezec do device_user
+        try:
+            gateway = CentralUnit.objects.get(device_user=request.user)
+        except CentralUnit.DoesNotExist:
+            return Response(
+                {"detail": "This JWT does not belong to any registered gateway."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = TelemetrySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        node_id = serializer.validated_data["node_id"]
+
+        try:
+            node = ControllableNode.objects.get(gateway=gateway, node_id=node_id)
+        except ControllableNode.DoesNotExist:
+            return Response(
+                {"detail": f"Węzeł '{node_id}' nie jest zarejestrowany w tym gateway."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not node.sensor_type:
+            return Response(
+                {"detail": f"Węzeł '{node_id}' nie ma zarejestrowanego czujnika."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reading = TelemetryReading.objects.create(
+            gateway=gateway,
+            node_id=node_id,
+            sensor_type=node.sensor_type,
+            value=serializer.validated_data["value"],
+        )
+
+        return Response(
+            TelemetryReadingSerializer(reading).data,
+            status=status.HTTP_201_CREATED,
         )
