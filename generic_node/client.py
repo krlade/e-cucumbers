@@ -27,7 +27,7 @@ class GenericNode:
         
         self.is_sending = True
         self.delay_ms = 10000
-        self.gpio_pins = {2: 0, 3: 0} # Symulowane piny wyjściowe GPIO
+        self.gpio_pins = {1: 0, 2: 0, 3: 0} # Symulowane piny wyjściowe GPIO
         
         # Paho MQTT - konfiguracja transportu.
         # W przypadku korzystania z portu 443 przez Cloudflare zazwyczaj wymagane jest websockets.
@@ -97,7 +97,7 @@ class GenericNode:
                 
         elif cmd == "get_pins":
             # Zwraca listę z naszym jednym pinem sensorycznym
-            self.send_reply("get_pins", f"[{SENSOR_PIN}]")
+            self.send_reply("get_pins", f"{list(self.gpio_pins.keys())}")
             
         elif cmd == "get_format":
             fmt = {

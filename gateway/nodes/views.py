@@ -118,6 +118,9 @@ def node_get_status(request, name: str):
             "last_seen": node.last_seen.strftime("%d.%m.%Y %H:%M:%S") if node.last_seen else "",
             "sensor_last_value": node.sensor_last_value,
             "sensor_unit": node.sensor_unit,
+            "switches": [
+                {"id": s.switch_id, "state": s.state} for s in node.switches.all()
+            ]
         })
     except Exception as exc:
         return JsonResponse({"result": "error", "detail": str(exc)}, status=500)

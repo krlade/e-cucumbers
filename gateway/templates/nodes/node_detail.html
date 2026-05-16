@@ -503,7 +503,7 @@
 
         <div class="stat-card">
             <div class="stat-label">Piny GPIO</div>
-            <div class="stat-value">{{ node.pins|length }} skonfigurowanych</div>
+            <div class="stat-value" id="status-gpio-count">{{ node.switches.count }} skonfigurowanych</div>
         </div>
     </div>
 
@@ -550,17 +550,19 @@
     <!-- GPIO pins (HIGH/LOW state) -->
     <div class="data-card">
         <h2>Stan wyjść GPIO</h2>
-        {% if node.pins %}
-            <div class="pins-grid">
-                {% for pin, val in node.pins.items %}
-                    <span class="pin-chip {% if val %}pin-high{% else %}pin-low{% endif %}">
-                        GPIO {{ pin }}: {% if val %}HIGH{% else %}LOW{% endif %}
-                    </span>
-                {% endfor %}
-            </div>
-        {% else %}
-            <p class="empty-hint">Brak zarejestrowanych wyjść GPIO dla tego węzła.</p>
-        {% endif %}
+        <div id="switches-container">
+            {% if node.switches.exists %}
+                <div class="pins-grid">
+                    {% for switch in node.switches.all %}
+                        <span class="pin-chip {% if switch.state %}pin-high{% else %}pin-low{% endif %}">
+                            GPIO {{ switch.switch_id }}: {% if switch.state %}HIGH{% else %}LOW{% endif %}
+                        </span>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-hint">Brak zarejestrowanych wyjść GPIO dla tego węzła.</p>
+            {% endif %}
+        </div>
     </div>
     <!-- Control panel -->
     <div class="ctrl-card">
@@ -831,6 +833,27 @@ function refreshStatus() {
                     } else {
                         valEl.className = 'sensor-pin-value-none';
                         valEl.textContent = 'brak pomiaru';
+                    }
+                }
+                
+                if (data.switches) {
+                    const countEl = document.getElementById('status-gpio-count');
+                    if (countEl) countEl.textContent = `${data.switches.length} skonfigurowanych`;
+                    
+                    const swContainer = document.getElementById('switches-container');
+                    if (swContainer) {
+                        if (data.switches.length > 0) {
+                            let html = '<div class="pins-grid">';
+                            data.switches.forEach(sw => {
+                                let cname = sw.state ? 'pin-high' : 'pin-low';
+                                let tname = sw.state ? 'HIGH' : 'LOW';
+                                html += `<span class="pin-chip ${cname}">GPIO ${sw.id}: ${tname}</span>`;
+                            });
+                            html += '</div>';
+                            swContainer.innerHTML = html;
+                        } else {
+                            swContainer.innerHTML = '<p class="empty-hint">Brak zarejestrowanych wyjść GPIO dla tego węzła.</p>';
+                        }
                     }
                 }
             }

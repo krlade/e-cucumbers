@@ -116,26 +116,20 @@ class Device:
         if command == "get_pins":
             try:
                 import ast
-                import sqlite3 as _sqlite3
+                from nodes.models import Node, Switch
                 pins_list = ast.literal_eval(str(result))
                 if pins_list:
-                    p = int(pins_list[0]) # Bierzemy tylko pierwszy jako sensor
-                    if self.sensor_pin != p:
-                        self.sensor_pin = p
                     self._sync_to_db()
-                    self._add_log("Auto get_format()")
-                    self.get_format()
-                    
-                    with _sqlite3.connect(DB_PATH) as con:
-                        node_id_row = con.execute("SELECT id FROM nodes_node WHERE name = ?", (self.name,)).fetchone()
-                        if node_id_row:
-                            node_id = node_id_row[0]
-                            for switch_pin in pins_list[1:]:
-                                con.execute("""
-                                    INSERT INTO nodes_switch (node_id, switch_id, state, switch_type)
-                                    VALUES (?, ?, 0, 'LAMP')
-                                    ON CONFLICT(node_id, switch_id) DO NOTHING
-                                """, (node_id, int(switch_pin)))
+                    try:
+                        node = Node.objects.get(name=self.name)
+                        for switch_pin in pins_list:
+                            Switch.objects.get_or_create(
+                                node=node,
+                                switch_id=int(switch_pin),
+                                defaults={'state': False, 'switch_type': Switch.TYPE_LAMP}
+                            )
+                    except Node.DoesNotExist:
+                        pass
             except Exception as e:
                 self._add_log(f"Błąd parsowania get_pins: {e}")
 
@@ -161,57 +155,39 @@ class Device:
                 self.is_sending = True
             elif command == "set_off":
                 self.is_sending = False
+            elif command == "pin_on" and pin_arg is not None:
+                from nodes.models import Switch
+                Switch.objects.filter(node__name=self.name, switch_id=int(pin_arg)).update(state=True)
+            elif command == "pin_off" and pin_arg is not None:
+                from nodes.models import Switch
+                Switch.objects.filter(node__name=self.name, switch_id=int(pin_arg)).update(state=False)
             self._sync_to_db()
 
         self._add_log(f"Odpowiedź na komendę '{command}': {result}")
 
     def _sync_to_db(self):
-        """Synchronizuje bieżący stan in-memory z rekordem Node w SQLite.
-        Używa bezpośrednio modułu sqlite3 — w pełni bezpieczne z wątku MQTT."""
-        import sqlite3 as _sqlite3
+        """Synchronizuje bieżący stan in-memory z rekordem Node w bazie, wykorzystując ORM."""
         try:
-            last_seen_iso = self.last_seen.isoformat() if self.last_seen else None
-            last_data_str = json.dumps(self.last_data) if self.last_data is not None else None
-            pins_str = json.dumps(self.pins)
+            from nodes.models import Node
             val_str = str(self.sensor_last_value) if self.sensor_last_value is not None else None
-            logs_str = json.dumps(self.logs_history)
-
-            with _sqlite3.connect(DB_PATH) as con:
-                con.execute("""
-                    INSERT INTO nodes_node
-                        (name, created_at, last_seen, is_sending, delay_ms, pins, last_data,
-                         sensor_pin, sensor_type, sensor_unit, sensor_min_value, sensor_max_value, sensor_last_value, logs)
-                    VALUES
-                        (?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(name) DO UPDATE SET
-                        last_seen    = excluded.last_seen,
-                        is_sending   = excluded.is_sending,
-                        delay_ms     = excluded.delay_ms,
-                        pins         = excluded.pins,
-                        last_data    = excluded.last_data,
-                        sensor_pin   = excluded.sensor_pin,
-                        sensor_type  = excluded.sensor_type,
-                        sensor_unit  = excluded.sensor_unit,
-                        sensor_min_value = excluded.sensor_min_value,
-                        sensor_max_value = excluded.sensor_max_value,
-                        sensor_last_value = excluded.sensor_last_value,
-                        logs         = excluded.logs
-                """, (
-                    self.name,
-                    last_seen_iso,
-                    1 if self.is_sending else 0,
-                    self.delay_ms,
-                    pins_str,
-                    last_data_str,
-                    self.sensor_pin,
-                    self.sensor_type,
-                    self.sensor_unit,
-                    self.sensor_min_value,
-                    self.sensor_max_value,
-                    val_str,
-                    logs_str,
-                ))
-
+            
+            Node.objects.update_or_create(
+                name=self.name,
+                defaults={
+                    'last_seen': self.last_seen,
+                    'is_sending': self.is_sending,
+                    'delay_ms': self.delay_ms,
+                    'pins': self.pins,
+                    'last_data': self.last_data,
+                    'sensor_pin': self.sensor_pin,
+                    'sensor_type': self.sensor_type,
+                    'sensor_unit': self.sensor_unit,
+                    'sensor_min_value': self.sensor_min_value,
+                    'sensor_max_value': self.sensor_max_value,
+                    'sensor_last_value': val_str,
+                    'logs': self.logs_history,
+                }
+            )
         except Exception as e:
             self._add_log(f"Błąd synchronizacji z DB: {e}")
 
@@ -264,77 +240,42 @@ class Gateway:
         self.client.disconnect()
 
     def _load_from_db(self):
-        """Wczytuje stan wszystkich węzłów z tabeli nodes_node w SQLite na starcie."""
-        import sqlite3 as _sqlite3
+        """Wczytuje stan wszystkich węzłów z bazy na starcie, korzystając z Django ORM."""
         try:
-            with _sqlite3.connect(DB_PATH) as con:
-                con.row_factory = _sqlite3.Row
-                # Sprawdź które opcjonalne kolumny istnieją (migracja mogła nie być jeszcze zastosowana)
-                cols = {r[1] for r in con.execute("PRAGMA table_info(nodes_node)").fetchall()}
-                select_cols = "id, name, last_data, last_seen, is_sending, delay_ms, pins"
+            from nodes.models import Node
+            nodes = Node.objects.all()
+
+            for node in nodes:
+                device = self.get_device(node.name)
+                device.last_data = node.last_data
+                device.last_seen = node.last_seen
+                device.is_sending = node.is_sending
+                device.delay_ms = node.delay_ms
+                device.pins = node.pins if node.pins else {}
                 
-                # Upewniamy się czy mamy te kolumny
-                if "sensor_pin" in cols:
-                    select_cols += ", sensor_pin, sensor_type, sensor_unit, sensor_min_value, sensor_max_value, sensor_last_value"
-                if "logs" in cols:
-                    select_cols += ", logs"
+                device.sensor_pin = node.sensor_pin
+                device.sensor_type = node.sensor_type
+                device.sensor_unit = node.sensor_unit
+                device.sensor_min_value = node.sensor_min_value
+                device.sensor_max_value = node.sensor_max_value
                 
-                rows = con.execute(f"SELECT {select_cols} FROM nodes_node").fetchall()
-
-            for row in rows:
-                device = self.get_device(row["name"])
-                # last_data
-                raw_ld = row["last_data"]
+                raw_val = node.sensor_last_value
                 try:
-                    device.last_data = json.loads(raw_ld) if raw_ld is not None else None
-                except (json.JSONDecodeError, TypeError):
-                    device.last_data = raw_ld
-                # last_seen
-                raw_ls = row["last_seen"]
-                if raw_ls:
-                    try:
-                        device.last_seen = datetime.datetime.fromisoformat(raw_ls)
-                    except ValueError:
-                        device.last_seen = None
-                # pozostałe pola
-                device.is_sending = bool(row["is_sending"])
-                device.delay_ms = row["delay_ms"]
-                raw_pins = row["pins"]
-                try:
-                    device.pins = json.loads(raw_pins) if raw_pins else {}
-                except (json.JSONDecodeError, TypeError):
-                    device.pins = {}
+                    if raw_val is not None:
+                        v = float(raw_val)
+                        if v.is_integer(): v = int(v)
+                        device.sensor_last_value = v
+                    else:
+                        device.sensor_last_value = None
+                except (ValueError, TypeError):
+                    device.sensor_last_value = raw_val
 
-                if "sensor_pin" in cols:
-                    device.sensor_pin = row["sensor_pin"]
-                    device.sensor_type = row["sensor_type"]
-                    device.sensor_unit = row["sensor_unit"]
-                    device.sensor_min_value = row["sensor_min_value"]
-                    device.sensor_max_value = row["sensor_max_value"]
-                    
-                    raw_val = row["sensor_last_value"]
-                    try:
-                        if raw_val is not None:
-                            v = float(raw_val)
-                            if v.is_integer(): v = int(v)
-                            device.sensor_last_value = v
-                        else:
-                            device.sensor_last_value = None
-                    except (ValueError, TypeError):
-                        device.sensor_last_value = raw_val
+                device.has_format = any(x is not None for x in [device.sensor_type, device.sensor_unit, device.sensor_min_value, device.sensor_max_value])
+                device.logs_history = node.logs if node.logs else []
 
-                    device.has_format = any(x is not None for x in [device.sensor_type, device.sensor_unit, device.sensor_min_value, device.sensor_max_value])
-
-                if "logs" in cols:
-                    raw_logs = row["logs"]
-                    try:
-                        device.logs_history = json.loads(raw_logs) if raw_logs else []
-                    except (json.JSONDecodeError, TypeError):
-                        device.logs_history = []
-
-            print(f"[Gateway] Wczytano stan {len(self.devices)} urządzeń z SQLite.")
+            print(f"[Gateway] Wczytano stan {len(self.devices)} urządzeń z bazy danych.")
         except Exception as e:
-            print(f"[Gateway] Błąd ładowania stanu z SQLite: {e}")
+            print(f"[Gateway] Błąd ładowania stanu z bazy danych: {e}")
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         print(f"[Gateway] Połączono z brokerem (kod: {reason_code})")
