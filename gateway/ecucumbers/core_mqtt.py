@@ -79,10 +79,10 @@ class Device:
         dostępnych pinów GPIO przez temat .../reply."""
         self._send_command("get_pins")
 
-    def get_format(self, arg: int):
-        """Wysyła komendę get_format z argumentem całkowitym do urządzenia —
+    def get_format(self):
+        """Wysyła komendę get_format do urządzenia —
         urządzenie odpowie opisem formatu danych pomiarowych przez temat .../reply."""
-        self._send_command("get_format", arg)
+        self._send_command("get_format")
 
     def handle_data(self, data):
         """Aktualizuje stan na podstawie odebranych danych z MQTT (temat: .../data).
@@ -96,6 +96,8 @@ class Device:
                     self.sensor_pin = int(k)
                 self.sensor_last_value = v
                 break # Zakładamy jeden pin pomiarowy
+        elif data is not None:
+            self.sensor_last_value = data
         print(f"[Urządzenie: {self.name}] Otrzymano nowe dane: {data}")
         self._sync_to_db()
 
@@ -110,8 +112,8 @@ class Device:
                     if self.sensor_pin != p:
                         self.sensor_pin = p
                     self._sync_to_db()
-                    print(f"[Urządzenie: {self.name}] Auto get_format({p})")
-                    self.get_format(p)
+                    print(f"[Urządzenie: {self.name}] Auto get_format()")
+                    self.get_format()
             except Exception as e:
                 print(f"[Urządzenie: {self.name}] Błąd parsowania get_pins: {e}")
 
@@ -124,9 +126,7 @@ class Device:
                     fmt = json.loads(result)
                 except json.JSONDecodeError:
                     pass
-            if fmt is not None and pin_arg is not None:
-                if self.sensor_pin is None:
-                    self.sensor_pin = int(pin_arg)
+            if fmt is not None:
                 self.sensor_type = fmt.get("type")
                 self.sensor_unit = fmt.get("unit")
                 self.sensor_min_value = fmt.get("min")

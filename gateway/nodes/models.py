@@ -91,8 +91,8 @@ class Node(models.Model):
 
 
 # Komendy dostępne w schedulerze (bez argumentu / z argumentem int)
-SCHEDULABLE_COMMANDS_NO_ARG = ["set_on", "set_off", "echo", "get_pins"]
-SCHEDULABLE_COMMANDS_INT_ARG = ["pin_on", "pin_off", "change_delay", "get_format"]
+SCHEDULABLE_COMMANDS_NO_ARG = ["set_on", "set_off", "echo", "get_pins", "get_format"]
+SCHEDULABLE_COMMANDS_INT_ARG = ["pin_on", "pin_off", "change_delay"]
 SCHEDULABLE_COMMANDS = SCHEDULABLE_COMMANDS_NO_ARG + SCHEDULABLE_COMMANDS_INT_ARG
 
 
