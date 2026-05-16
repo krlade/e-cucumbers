@@ -52,6 +52,7 @@ class Node(models.Model):
     sensor_min_value = models.FloatField(blank=True, null=True, verbose_name="Wartość min")
     sensor_max_value = models.FloatField(blank=True, null=True, verbose_name="Wartość max")
     sensor_last_value = models.CharField(max_length=255, blank=True, null=True, verbose_name="Ostatnia wartość")
+    logs = models.JSONField(default=list, blank=True, verbose_name="Logi urządzenia")
 
     class Meta:
         verbose_name = "Węzeł"

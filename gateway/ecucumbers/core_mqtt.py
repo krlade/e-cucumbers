@@ -162,14 +162,15 @@ class Device:
             last_data_str = json.dumps(self.last_data) if self.last_data is not None else None
             pins_str = json.dumps(self.pins)
             val_str = str(self.sensor_last_value) if self.sensor_last_value is not None else None
+            logs_str = json.dumps(self.logs_history)
 
             with _sqlite3.connect(DB_PATH) as con:
                 con.execute("""
                     INSERT INTO nodes_node
                         (name, created_at, last_seen, is_sending, delay_ms, pins, last_data,
-                         sensor_pin, sensor_type, sensor_unit, sensor_min_value, sensor_max_value, sensor_last_value)
+                         sensor_pin, sensor_type, sensor_unit, sensor_min_value, sensor_max_value, sensor_last_value, logs)
                     VALUES
-                        (?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(name) DO UPDATE SET
                         last_seen    = excluded.last_seen,
                         is_sending   = excluded.is_sending,
@@ -181,7 +182,8 @@ class Device:
                         sensor_unit  = excluded.sensor_unit,
                         sensor_min_value = excluded.sensor_min_value,
                         sensor_max_value = excluded.sensor_max_value,
-                        sensor_last_value = excluded.sensor_last_value
+                        sensor_last_value = excluded.sensor_last_value,
+                        logs         = excluded.logs
                 """, (
                     self.name,
                     last_seen_iso,
@@ -195,6 +197,7 @@ class Device:
                     self.sensor_min_value,
                     self.sensor_max_value,
                     val_str,
+                    logs_str,
                 ))
 
         except Exception as e:
@@ -261,6 +264,8 @@ class Gateway:
                 # Upewniamy się czy mamy te kolumny
                 if "sensor_pin" in cols:
                     select_cols += ", sensor_pin, sensor_type, sensor_unit, sensor_min_value, sensor_max_value, sensor_last_value"
+                if "logs" in cols:
+                    select_cols += ", logs"
                 
                 rows = con.execute(f"SELECT {select_cols} FROM nodes_node").fetchall()
 
@@ -307,6 +312,13 @@ class Gateway:
                         device.sensor_last_value = raw_val
 
                     device.has_format = any(x is not None for x in [device.sensor_type, device.sensor_unit, device.sensor_min_value, device.sensor_max_value])
+
+                if "logs" in cols:
+                    raw_logs = row["logs"]
+                    try:
+                        device.logs_history = json.loads(raw_logs) if raw_logs else []
+                    except (json.JSONDecodeError, TypeError):
+                        device.logs_history = []
 
             print(f"[Gateway] Wczytano stan {len(self.devices)} urządzeń z SQLite.")
         except Exception as e:

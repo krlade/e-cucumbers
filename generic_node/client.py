@@ -26,7 +26,7 @@ class GenericNode:
         self.port = port
         
         self.is_sending = True
-        self.delay_ms = 1000
+        self.delay_ms = 10000
         self.gpio_pins = {2: 0, 3: 0} # Symulowane piny wyjściowe GPIO
         
         # Paho MQTT - konfiguracja transportu.

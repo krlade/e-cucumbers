@@ -86,22 +86,39 @@ def node_get_pins(request, name: str):
 
 @login_required
 def node_get_format(request, name: str):
-    """POST/GET /api/nodes/<name>/format/?argument=<int> — wysyła komendę get_format
-    z argumentem całkowitym do urządzenia przez MQTT."""
+    """POST/GET /api/nodes/<name>/format/ — wysyła komendę get_format do urządzenia przez MQTT."""
     try:
-        raw_arg = (request.POST.get("argument") or request.GET.get("argument", "")).strip()
-        if not raw_arg:
-            return JsonResponse({"result": "error", "detail": "Brak wymaganego argumentu (int)."}, status=400)
-        try:
-            arg = int(raw_arg)
-        except ValueError:
-            return JsonResponse({"result": "error", "detail": f"Argument musi być liczbą całkowitą, otrzymano: '{raw_arg}'"}, status=400)
-        get_object_or_404(Node, name=name)
         live = _get_live_device(name)
         if live is None:
             return JsonResponse({"result": "error", "detail": "Brak połączenia z bramką MQTT."}, status=503)
-        live.get_format(arg)
+        live.get_format()
         return JsonResponse({"result": "sent"})
+    except Exception as exc:
+        return JsonResponse({"result": "error", "detail": str(exc)}, status=500)
+
+@login_required
+def node_get_logs(request, name: str):
+    """GET /api/nodes/<name>/logs/ — pobiera najnowsze logi."""
+    try:
+        live = _get_live_device(name)
+        if live is not None:
+            return JsonResponse({"logs": live.logs_history})
+        node = get_object_or_404(Node, name=name)
+        return JsonResponse({"logs": node.logs or []})
+    except Exception as exc:
+        return JsonResponse({"result": "error", "detail": str(exc)}, status=500)
+
+@login_required
+def node_get_status(request, name: str):
+    """GET /api/nodes/<name>/status/ — pobiera najnowszy status do odświeżenia UI."""
+    try:
+        node = get_object_or_404(Node, name=name)
+        return JsonResponse({
+            "last_seen_ago": node.last_seen_ago,
+            "last_seen": node.last_seen.strftime("%d.%m.%Y %H:%M:%S") if node.last_seen else "",
+            "sensor_last_value": node.sensor_last_value,
+            "sensor_unit": node.sensor_unit,
+        })
     except Exception as exc:
         return JsonResponse({"result": "error", "detail": str(exc)}, status=500)
 
