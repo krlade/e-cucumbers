@@ -511,36 +511,14 @@
         </div>
     </div>
 
-    <!-- Last data payload -->
-    <div class="data-card">
-        <h2>Ostatnie dane pomiarowe</h2>
-        {% if node.last_data %}
-            {% if node.last_data.items %}
-                {% for key, val in node.last_data.items %}
-                <div class="data-row">
-                    <span class="data-key">{{ key }}</span>
-                    <span class="data-val">{{ val }}</span>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="data-row">
-                    <span class="data-val">{{ node.last_data }}</span>
-                </div>
-            {% endif %}
-        {% else %}
-            <p class="empty-hint">Brak odebranych danych pomiarowych dla tego węzła.</p>
-        {% endif %}
-    </div>
 
     <!-- Sensor pin -->
     <div class="data-card">
-        <h2>Pin sensoryczny</h2>
+        <h2>Ostatnie dane</h2>
         {% with target=live_device|default:node %}
         {% if target.sensor_pin is not None %}
             <div class="sensor-pins-grid">
                 <div class="sensor-pin-card">
-                    <div class="sensor-pin-num">📍 Pin {{ target.sensor_pin }}</div>
-
                     {# Ostatnia znana wartość pinu #}
                     {% if target.sensor_last_value is not None %}
                         <div class="sensor-pin-value">
@@ -689,13 +667,6 @@
         </div>
         <div class="ctrl-group">
             <span class="ctrl-group-label">Format pomiarów</span>
-            <input
-                id="input-get-format-arg"
-                type="number"
-                placeholder="argument"
-                class="ctrl-input"
-                style="width:100px;"
-            >
             <button
                 id="btn-get-format"
                 class="ctrl-btn ctrl-btn-gray"
@@ -705,83 +676,28 @@
         </div>
     </div>
 
-    <!-- Scheduler panel -->
-    <div class="ctrl-card" id="scheduler-panel">
-        <h2>⏰ Harmonogram komend (Cron)</h2>
-
-        {# ── Lista istniejących harmonogramów ── #}
-        {% if schedules %}
-        <table class="sched-table">
-            <thead>
-                <tr>
-                    <th>Komenda</th>
-                    <th>Argument</th>
-                    <th>Co [s]</th>
-                    <th>Status</th>
-                    <th>Ostatnie wyk.</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for sc in schedules %}
-                <tr class="{% if not sc.enabled %}disabled{% endif %}">
-                    <td><code>{{ sc.command }}</code></td>
-                    <td>{{ sc.argument|default:"—" }}</td>
-                    <td>{{ sc.interval_seconds }}</td>
-                    <td>
-                        {% if sc.enabled %}
-                            <span class="sched-badge sched-badge-on">● aktywny</span>
-                        {% else %}
-                            <span class="sched-badge sched-badge-off">● wstrzymany</span>
-                        {% endif %}
-                    </td>
-                    <td style="font-size:0.8rem; color:var(--gray-400);">
-                        {{ sc.last_run|date:"d.m.Y H:i:s"|default:"—" }}
-                    </td>
-                    <td style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-                        <form method="POST" action="{% url 'schedule_toggle' node.name sc.pk %}">
-                            {% csrf_token %}
-                            <button type="submit" class="ctrl-btn ctrl-btn-gray" style="padding:0.3rem 0.6rem; font-size:0.75rem;">
-                                {% if sc.enabled %}⏸{% else %}▶{% endif %}
-                            </button>
-                        </form>
-                        <form method="POST" action="{% url 'schedule_delete' node.name sc.pk %}">
-                            {% csrf_token %}
-                            <button type="submit" class="ctrl-btn ctrl-btn-red" style="padding:0.3rem 0.6rem; font-size:0.75rem;"
-                                onclick="return confirm('Usunąć harmonogram?')">
-                                🗑
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-            <p class="empty-hint" style="margin-bottom:0.5rem;">Brak zaplanowanych komend dla tego węzła.</p>
-        {% endif %}
-
-        {# ── Formularz dodawania #}
-        <form method="POST" action="{% url 'schedule_add' node.name %}" class="sched-add-form" id="sched-add-form">
-            {% csrf_token %}
-            <label>
-                Komenda
-                <select name="command" id="sched-cmd" class="sched-select" onchange="onSchedCmdChange(this)">
-                    {% for cmd in schedulable_commands %}
-                        <option value="{{ cmd }}">{{ cmd }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label id="sched-arg-label">
-                Argument (int)
-                <input type="number" name="argument" id="sched-arg" class="ctrl-input" placeholder="np. 5" style="width:90px;">
-            </label>
-            <label>
-                Co [s]
-                <input type="number" name="interval_seconds" class="ctrl-input" min="1" placeholder="np. 60" required style="width:90px;">
-            </label>
-            <button type="submit" class="ctrl-btn ctrl-btn-green">➕ Dodaj</button>
-        </form>
+    <!-- Logs panel -->
+    <div class="ctrl-card" id="logs-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0;">
+            <h2>📜 Logi urządzenia</h2>
+            <button class="ctrl-btn ctrl-btn-gray" onclick="toggleLogs()" id="btn-toggle-logs" style="padding:0.4rem 0.8rem; font-size:0.85rem;">Pokaż</button>
+        </div>
+        
+        <div id="logs-container" style="display: none; margin-top: 1rem; background: var(--gray-800); padding: 0.8rem; border-radius: 6px; border: 1px solid var(--gray-700); max-height: 300px; overflow-y: auto;">
+            {% if live_device %}
+                {% if live_device.logs_history %}
+                    <ul style="list-style: none; margin: 0; padding: 0; font-family: monospace; font-size: 0.85rem;">
+                        {% for log in live_device.logs_history reversed %}
+                            <li style="margin-bottom: 0.3rem; color: var(--gray-300);">{{ log }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="empty-hint" style="margin:0;">Brak logów dla tej sesji.</p>
+                {% endif %}
+            {% else %}
+                <p class="empty-hint" style="margin:0;">Urządzenie aktualnie odłączone (brak logów live).</p>
+            {% endif %}
+        </div>
     </div>
 
 </div>
@@ -798,16 +714,6 @@ function fetchApiInfo(endpoint, btn) {
     resultEl.className = 'api-result';
 
     let url = `/api/nodes/${nodeName}/${endpoint}/`;
-    if (endpoint === 'format') {
-        const arg = document.getElementById('input-get-format-arg').value.trim();
-        if (!arg) {
-            resultEl.textContent = 'error: podaj argument (int)';
-            resultEl.className = 'api-result err';
-            btn.disabled = false;
-            return;
-        }
-        url += `?argument=${encodeURIComponent(arg)}`;
-    }
 
     fetch(url)
         .then(r => r.json())
@@ -827,22 +733,17 @@ function fetchApiInfo(endpoint, btn) {
         .finally(() => { btn.disabled = false; });
 }
 
-// ── Scheduler form ───────────────────────────────────────────────────────
-const INT_ARG_COMMANDS = new Set({{ schedulable_int_arg_commands|safe }});
-
-function onSchedCmdChange(sel) {
-    const argLabel = document.getElementById('sched-arg-label');
-    const argInput = document.getElementById('sched-arg');
-    const needsArg = INT_ARG_COMMANDS.has(sel.value);
-    argLabel.style.display = needsArg ? 'flex' : 'none';
-    argInput.required = needsArg;
-    if (!needsArg) argInput.value = '';
+// ── Logs Panel ───────────────────────────────────────────────────────────
+function toggleLogs() {
+    const container = document.getElementById('logs-container');
+    const btn = document.getElementById('btn-toggle-logs');
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        btn.textContent = 'Ukryj';
+    } else {
+        container.style.display = 'none';
+        btn.textContent = 'Pokaż';
+    }
 }
-
-// Ustaw stan pola argumentu przy ładowaniu strony
-document.addEventListener('DOMContentLoaded', () => {
-    const sel = document.getElementById('sched-cmd');
-    if (sel) onSchedCmdChange(sel);
-});
 </script>
 {% endblock %}

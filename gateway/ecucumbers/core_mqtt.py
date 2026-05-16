@@ -40,6 +40,16 @@ class Device:
         self.sensor_max_value = None
         self.sensor_last_value = None
         self.has_format = False
+        self.logs_history = []
+
+    def _add_log(self, msg):
+        """Dodaje log do lokalnej historii urządzenia oraz wypisuje na konsolę."""
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        log_entry = f"[{timestamp}] {msg}"
+        self.logs_history.append(log_entry)
+        if len(self.logs_history) > 100:
+            self.logs_history.pop(0)
+        print(f"[Urządzenie: {self.name}] {msg}")
 
     def _send_command(self, command, arguments=None):
         """Wysyła sformatowaną komendę korzystając z MQTT stacji centralnej."""
@@ -98,7 +108,7 @@ class Device:
                 break # Zakładamy jeden pin pomiarowy
         elif data is not None:
             self.sensor_last_value = data
-        print(f"[Urządzenie: {self.name}] Otrzymano nowe dane: {data}")
+        self._add_log(f"Otrzymano nowe dane: {data}")
         self._sync_to_db()
 
     def handle_reply(self, command, result, pin_arg=None):
@@ -112,10 +122,10 @@ class Device:
                     if self.sensor_pin != p:
                         self.sensor_pin = p
                     self._sync_to_db()
-                    print(f"[Urządzenie: {self.name}] Auto get_format()")
+                    self._add_log("Auto get_format()")
                     self.get_format()
             except Exception as e:
-                print(f"[Urządzenie: {self.name}] Błąd parsowania get_pins: {e}")
+                self._add_log(f"Błąd parsowania get_pins: {e}")
 
         elif command == "get_format":
             fmt = None
@@ -141,7 +151,7 @@ class Device:
                 self.is_sending = False
             self._sync_to_db()
 
-        print(f"[Urządzenie: {self.name}] Odpowiedź na komendę '{command}': {result}")
+        self._add_log(f"Odpowiedź na komendę '{command}': {result}")
 
     def _sync_to_db(self):
         """Synchronizuje bieżący stan in-memory z rekordem Node w SQLite.
@@ -188,7 +198,7 @@ class Device:
                 ))
 
         except Exception as e:
-            print(f"[Device:{self.name}] Błąd synchronizacji z DB: {e}")
+            self._add_log(f"Błąd synchronizacji z DB: {e}")
 
 
 class Gateway:
