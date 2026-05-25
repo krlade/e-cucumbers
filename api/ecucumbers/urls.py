@@ -2,10 +2,11 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
-from accounts.views import dashboard_view
+from accounts.views import dashboard_view, simulation_view
 
 urlpatterns = [
     path("", dashboard_view, name="dashboard"),
+    path("simulation/", simulation_view, name="simulation"),
     path("admin/", admin.site.urls),
     path("accounts/", include("accounts.urls")),          # HTML views
     path("api/accounts/", include("accounts.api_urls")),  # API JSON

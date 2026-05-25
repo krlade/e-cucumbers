@@ -92,12 +92,13 @@ def dashboard_view(request):
     )
     devices = []
     for o in ownerships:
-        peripherals = ControllableNode.objects.filter(gateway=o.device)
+        peripherals = ControllableNode.objects.filter(gateway=o.device).order_by("node_id", "gpio")
         devices.append({
             "unit":            o.device,
             "role":            o.role,
             "lamp_count":      peripherals.filter(peripheral_type="LAMP").count(),
             "sprinkler_count": peripherals.filter(peripheral_type="SPRINKLER").count(),
+            "peripherals":     peripherals,
         })
     return render(request, "dashboard.html", {"devices": devices})
 
@@ -158,3 +159,12 @@ def manage_users_view(request):
 def custom_csrf_failure(request, reason=""):
     messages.error(request, "Twoja sesja bezpieczeństwa wygasła lub została przerwana. Zaloguj się ponownie.")
     return redirect("login")
+
+
+@login_required
+def simulation_view(request):
+    from django.core.exceptions import PermissionDenied
+    if not request.user.is_superuser:
+        raise PermissionDenied
+    return render(request, "simulation.html")
+

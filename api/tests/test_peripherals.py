@@ -54,10 +54,10 @@ payload = {
     "device_id": "2137",
     "peripherals": [
         {"node_id": "Pico_01", "gpio": 1, "peripheral_type": "LAMP"},
-        {"node_id": "Pico_01", "gpio": 2, "peripheral_type": "LAMP"},
-        {"node_id": "Pico_01", "gpio": 3, "peripheral_type": "LAMP"},
-        {"node_id": "Pico_01", "gpio": 4, "peripheral_type": "SPRINKLER"},
-        {"node_id": "Pico_01", "gpio": 5, "peripheral_type": "SPRINKLER"},
+        {"node_id": "Pico_02", "gpio": 2, "peripheral_type": "LAMP"},
+        {"node_id": "Pico_03", "gpio": 3, "peripheral_type": "LAMP"},
+        {"node_id": "Pico_04", "gpio": 4, "peripheral_type": "SPRINKLER"},
+        {"node_id": "Pico_05", "gpio": 5, "peripheral_type": "SPRINKLER"},
     ],
 }
 s, b = req("POST", "/api/nodes/register-peripherals/", payload, token=device_access)
@@ -139,4 +139,4 @@ print(f"  Status: {s}")
 assert s == 400
 print("  [PASS]")
 
-print("\n✅ All 8 peripheral tests passed!")
+print("\n[OK] All 8 peripheral tests passed!")

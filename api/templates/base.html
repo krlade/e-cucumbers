@@ -292,7 +292,11 @@
             {% if user.is_superuser %}
             <li><a href="{% url 'manage_users' %}" style="color: #6ee7b7;">Zarządzanie Użytkownikami</a></li>
             {% endif %}
+            {% if user.is_superuser %}
+            <li><a href="{% url 'simulation' %}">Symulator (Gateway)</a></li>
+            {% endif %}
             <li><a href="{% url 'dashboard' %}">Dashboard</a></li>
+
             <li>
                 <form method="post" action="{% url 'logout' %}" style="display:inline">
                     {% csrf_token %}

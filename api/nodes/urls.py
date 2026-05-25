@@ -9,4 +9,5 @@ urlpatterns = [
     path("command/", views.SendCommandView.as_view(), name="send-command"),
     path("heartbeat/", views.HeartbeatView.as_view(), name="heartbeat"),
     path("telemetry/", views.TelemetryView.as_view(), name="telemetry"),
+    path("user-devices/", views.ListDevicesView.as_view(), name="user-devices"),
 ]

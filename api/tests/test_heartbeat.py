@@ -48,7 +48,7 @@ s, b = req("POST", "/api/nodes/register-peripherals/", {
     "device_id": "2137",
     "peripherals": [
         {"node_id": "Pico_01", "gpio": 1, "peripheral_type": "LAMP"},
-        {"node_id": "Pico_01", "gpio": 2, "peripheral_type": "SPRINKLER"},
+        {"node_id": "Pico_02", "gpio": 2, "peripheral_type": "SPRINKLER"},
     ],
 }, token=device_access)
 assert s == 200
@@ -61,7 +61,7 @@ for _ in range(3):
     assert s == 201
 for _ in range(2):
     s, b = req("POST", "/api/nodes/command/",
-               {"device_id": "2137", "node_id": "Pico_01", "gpio": 2, "command": ["WATER_PUMP_ON", 30]},
+               {"device_id": "2137", "node_id": "Pico_02", "gpio": 2, "command": ["WATER_PUMP_ON", 30]},
                token=jan_access)
     assert s == 201
 print("  [OK]\n")
