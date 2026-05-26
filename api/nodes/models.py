@@ -109,6 +109,7 @@ class ControllableNode(models.Model):
         ],
         TYPE_SPRINKLER: [
             {"name": "WATER_PUMP_ON", "params": [{"key": "time", "unit": "minutes", "type": "int"}]},
+            {"name": "TURN_OFF",    "params": []},
         ],
     }
 

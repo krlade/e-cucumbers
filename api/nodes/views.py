@@ -73,6 +73,34 @@ class RegisterDeviceView(APIView):
             "access": str(refresh.access_token), "refresh": str(refresh),
         }, status=status.HTTP_200_OK)
 
+    def delete(self, request):
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        device_id = request.data.get("device_id") or request.query_params.get("device_id")
+        if not device_id:
+            return Response({"detail": "Field 'device_id' is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            gateway = CentralUnit.objects.get(device_id=device_id)
+        except CentralUnit.DoesNotExist:
+            return Response({"detail": "Device not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            ownership = DeviceOwnership.objects.get(user=request.user, device=gateway)
+        except DeviceOwnership.DoesNotExist:
+            return Response({"detail": "You do not own this device."}, status=status.HTTP_403_FORBIDDEN)
+
+        if ownership.role != DeviceOwnership.ROLE_ADMIN:
+            ownership.delete()
+            return Response({"detail": "Ownership removed successfully."}, status=status.HTTP_200_OK)
+
+        device_user = gateway.device_user
+        device_user.delete()
+
+        return Response({"detail": "Device unregistered and deleted successfully."}, status=status.HTTP_200_OK)
+
+
 
 class RegisterPeripheralsView(APIView):
     """POST /api/nodes/register-peripherals/ — gateway rejestruje peryferia (wymaga JWT urządzenia)."""
@@ -167,6 +195,30 @@ class SendCommandView(APIView):
 
         return Response(QueuedCommandSerializer(cmd).data, status=status.HTTP_201_CREATED)
 
+    def get(self, request):
+        device_id = request.query_params.get("device_id")
+        if not device_id:
+            return Response({"detail": "Query parameter 'device_id' is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            gateway = CentralUnit.objects.get(device_id=device_id)
+        except CentralUnit.DoesNotExist:
+            return Response({"detail": "Device not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_device_user = (gateway.device_user == request.user)
+        is_owner = DeviceOwnership.objects.filter(user=request.user, device=gateway).exists()
+        if not (is_device_user or is_owner):
+            return Response({"detail": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        limit = request.query_params.get("limit", 20)
+        try:
+            limit = int(limit)
+        except ValueError:
+            limit = 20
+
+        commands = QueuedCommand.objects.filter(peripheral__gateway=gateway).order_by("-created_at")[:limit]
+        return Response(QueuedCommandSerializer(commands, many=True).data)
+
 
 class HeartbeatView(APIView):
     """POST /api/nodes/heartbeat/ — gateway odbiera zakolejkowane komendy.
@@ -198,6 +250,9 @@ class HeartbeatView(APIView):
         # Atomiocznie oznacz jako dostarczone
         now = timezone.now()
         pending.update(status=QueuedCommand.STATUS_DELIVERED, delivered_at=now)
+        for cmd in commands:
+            cmd.status = QueuedCommand.STATUS_DELIVERED
+            cmd.delivered_at = now
 
         return Response(
             {
@@ -258,3 +313,51 @@ class TelemetryView(APIView):
             TelemetryReadingSerializer(reading).data,
             status=status.HTTP_201_CREATED,
         )
+
+    def get(self, request):
+        device_id = request.query_params.get("device_id")
+        if not device_id:
+            return Response({"detail": "Query parameter 'device_id' is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            gateway = CentralUnit.objects.get(device_id=device_id)
+        except CentralUnit.DoesNotExist:
+            return Response({"detail": "Device not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_device_user = (gateway.device_user == request.user)
+        is_owner = DeviceOwnership.objects.filter(user=request.user, device=gateway).exists()
+        if not (is_device_user or is_owner):
+            return Response({"detail": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        sensor_type = request.query_params.get("sensor_type")
+        limit = request.query_params.get("limit", 50)
+        try:
+            limit = int(limit)
+        except ValueError:
+            limit = 50
+
+        readings = TelemetryReading.objects.filter(gateway=gateway)
+        if sensor_type:
+            readings = readings.filter(sensor_type=sensor_type)
+
+        readings = readings.order_by("-recorded_at")[:limit]
+        # Return in ascending order of recorded_at for easier charting
+        readings_list = list(readings)[::-1]
+
+        return Response(TelemetryReadingSerializer(readings_list, many=True).data)
+
+
+class ListDevicesView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        ownerships = DeviceOwnership.objects.filter(user=request.user).select_related("device")
+        devices_list = []
+        for o in ownerships:
+            devices_list.append({
+                "device_id": o.device.device_id,
+                "role": o.role,
+                "registered_at": o.device.registered_at.isoformat()
+            })
+        return Response(devices_list)
+

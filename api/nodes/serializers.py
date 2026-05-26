@@ -80,6 +80,15 @@ class RegisterPeripheralsSerializer(serializers.Serializer):
             raise serializers.ValidationError("Device not found.")
         return value
 
+    def validate(self, data):
+        peripherals = data.get("peripherals", [])
+        node_ids = [p["node_id"] for p in peripherals]
+        if len(node_ids) != len(set(node_ids)):
+            raise serializers.ValidationError(
+                {"peripherals": "Każdy węzeł (node_id) w liście musi mieć unikalną nazwę."}
+            )
+        return data
+
 
 # ── Commands ──
 
@@ -164,7 +173,7 @@ class QueuedCommandSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = QueuedCommand
-        fields = ["id", "node_id", "gpio", "peripheral_type", "command", "time", "status", "created_at"]
+        fields = ["id", "node_id", "gpio", "peripheral_type", "command", "time", "status", "created_at", "delivered_at"]
         read_only_fields = fields
 
 

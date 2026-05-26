@@ -49,7 +49,7 @@ s, b = req("POST", "/api/nodes/register-peripherals/", {
     "device_id": "2137",
     "peripherals": [
         {"node_id": "Pico_01", "gpio": 1, "peripheral_type": "LAMP"},
-        {"node_id": "Pico_01", "gpio": 2, "peripheral_type": "SPRINKLER"},
+        {"node_id": "Pico_02", "gpio": 2, "peripheral_type": "SPRINKLER"},
     ],
 }, token=device_access)
 assert s == 200, f"Register peripherals failed: {b}"
@@ -83,7 +83,7 @@ print("  [PASS]")
 # ── 3. WATER_PUMP_ON z parametrem czasu (minuty) ──
 print("\n=== 3. WATER_PUMP_ON sprinkler with time ===")
 s, b = req("POST", "/api/nodes/command/", {
-    "device_id": "2137", "node_id": "Pico_01", "gpio": 2,
+    "device_id": "2137", "node_id": "Pico_02", "gpio": 2,
     "command": ["WATER_PUMP_ON", 45]
 }, token=jan_access)
 print(f"  Status: {s}, command: {b.get('command')}, time: {b.get('time')}")
@@ -95,7 +95,7 @@ print("  [PASS]")
 # ── 4. Nielegalna komenda dla danego typu ──
 print("\n=== 4. Illegal command for peripheral type ===")
 s, b = req("POST", "/api/nodes/command/", {
-    "device_id": "2137", "node_id": "Pico_01", "gpio": 2,
+    "device_id": "2137", "node_id": "Pico_02", "gpio": 2,
     "command": ["TURN_OFF"]  # TURN_OFF jest dla LAMP, nie SPRINKLER
 }, token=jan_access)
 print(f"  Status: {s}")

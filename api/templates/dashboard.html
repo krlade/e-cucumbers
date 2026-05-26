@@ -1,11 +1,365 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Dashboard — E-Cucumbers{% endblock %}
 
+{% block extra_css %}
+<style>
+    .info-card.control-center {
+        grid-column: span 2;
+        background: linear-gradient(135deg, var(--green-800), var(--green-900));
+        color: white;
+        border: none;
+    }
+    .info-card.control-center h3 {
+        color: var(--green-100);
+    }
+    .info-card.control-center p {
+        color: var(--green-50);
+        font-size: 0.9rem;
+    }
+
+    /* --- Device Dashboard --- */
+    .device-box {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow);
+    }
+
+    .device-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 2px solid var(--green-50);
+        padding-bottom: 0.75rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .device-title {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .device-title h2 {
+        font-family: monospace;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--green-800);
+        margin: 0;
+    }
+
+    .device-grid {
+        display: grid;
+        grid-template-columns: 1.6fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+        .device-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* --- Telemetry Cards --- */
+    .sensors-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .sensor-card {
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .sensor-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow);
+    }
+
+    .sensor-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+    }
+
+    .sensor-val {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--gray-900);
+        display: flex;
+        align-items: baseline;
+        gap: 0.25rem;
+    }
+
+    .sensor-unit {
+        font-size: 1rem;
+        color: var(--gray-500);
+        font-weight: 500;
+    }
+
+    .sensor-chart-container {
+        height: 280px;
+        position: relative;
+        margin-top: 0.5rem;
+     }
+
+    /* --- Time Range Group --- */
+    .time-range-group {
+        display: flex;
+        gap: 0.25rem;
+        background: var(--gray-200);
+        padding: 2px;
+        border-radius: 4px;
+    }
+    .btn-range {
+        background: transparent;
+        border: none;
+        color: var(--gray-500);
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 0.15rem 0.4rem;
+        border-radius: 3px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-range:hover {
+        color: var(--gray-900);
+    }
+    .btn-range.active {
+        background: white;
+        color: var(--green-800);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    /* --- Control Section (Premium Cards) --- */
+    .control-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 1rem 1.25rem;
+        margin-bottom: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        transition: all 0.2s;
+    }
+
+    .control-card:hover {
+        border-color: var(--green-300);
+        box-shadow: var(--shadow);
+    }
+
+    .control-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--gray-100);
+        padding-bottom: 0.5rem;
+    }
+
+    .control-card-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--gray-800);
+    }
+
+    .control-card-status {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: var(--gray-300);
+        transition: all 0.3s;
+    }
+
+    .status-text {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .control-card-body {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .control-btn-group {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .control-input-group {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        background: var(--gray-100);
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        border: 1px solid var(--gray-200);
+    }
+
+    .control-input-group input {
+        width: 50px;
+        padding: 0.15rem;
+        border: 1px solid var(--gray-300);
+        border-radius: 4px;
+        text-align: center;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .control-input-group span {
+        font-size: 0.75rem;
+        color: var(--gray-500);
+        font-weight: 500;
+    }
+
+    .btn-sm {
+        padding: 0.35rem 0.85rem;
+        font-size: 0.8rem;
+        border-radius: 4px;
+        width: auto;
+    }
+
+    .btn-off {
+        background: var(--gray-500);
+    }
+    .btn-off:hover {
+        background: var(--gray-700);
+    }
+
+    .btn-secondary {
+        background: var(--gray-100);
+        color: var(--gray-700);
+        border: 1px solid var(--gray-300);
+    }
+    .btn-secondary:hover {
+        background: var(--gray-200);
+        color: var(--gray-900);
+    }
+
+    .status-msg {
+        font-size: 0.75rem;
+        margin-left: 0.5rem;
+        font-weight: 500;
+        display: inline-block;
+        transition: opacity 0.3s;
+    }
+
+    /* --- Logs Table --- */
+    .logs-box {
+        background: var(--gray-900);
+        color: var(--gray-200);
+        border-radius: var(--radius);
+        padding: 1rem;
+        font-family: monospace;
+        font-size: 0.8rem;
+        max-height: 520px;
+        overflow-y: auto;
+        border: 1px solid #333;
+        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .logs-box h3 {
+        color: var(--green-500);
+        margin-bottom: 0.75rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        border-bottom: 1px solid #444;
+        padding-bottom: 0.25rem;
+    }
+
+    .log-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .log-table th, .log-table td {
+        padding: 0.4rem 0.25rem;
+        text-align: left;
+        border-bottom: 1px solid #222;
+    }
+
+    .log-table th {
+        color: var(--gray-400);
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .badge-status {
+        padding: 0.1rem 0.4rem;
+        border-radius: 3px;
+        font-size: 0.7rem;
+        font-weight: bold;
+    }
+
+    .badge-pending {
+        background: #d97706;
+        color: white;
+    }
+
+    .badge-delivered {
+        background: #059669;
+        color: white;
+    }
+    
+    .badge-executing {
+        background: #2563eb;
+        color: white;
+        animation: pulse-blue 2s infinite;
+    }
+
+    .badge-completed {
+        background: #6b7280;
+        color: white;
+    }
+
+    @keyframes pulse-blue {
+        0% { opacity: 0.85; }
+        50% { opacity: 1; }
+        100% { opacity: 0.85; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
+<!-- Skrypt Chart.js ze sprawdzonej platformy CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <div class="dashboard-header">
     <h1>Dashboard</h1>
-    <p>Witaj, <strong>{{ user.username }}</strong>. System E-Cucumbers — monitorowanie i sterowanie.</p>
+    <p>Witaj, <strong>{{ user.username }}</strong>. System E-Cucumbers — monitorowanie i sterowanie w czasie rzeczywistym.</p>
 </div>
 
 <div class="info-grid">
@@ -22,12 +376,12 @@
         <div class="value">{{ user.date_joined|date:"d.m.Y H:i" }}</div>
     </div>
 
-    <!-- Dodaj urządzenie -->
+    <!-- Generowanie Tokena -->
     <div class="info-card" id="pairing-card">
-        <h3>Dodaj urządzenie</h3>
+        <h3>Podłącz nową Jednostkę</h3>
         <div id="pairing-content">
             <p style="font-size:0.875rem; color:var(--gray-500); margin-bottom:0.75rem;">
-                Wygeneruj token parowania, aby podłączyć Jednostkę Centralną.
+                Wygeneruj token parowania dla Raspberry Pi.
             </p>
             <button class="btn" style="padding:0.4rem 1rem; font-size:0.8rem;" onclick="generatePairingToken()">
                 Generuj Token Parowania
@@ -36,8 +390,11 @@
         <div id="pairing-result" style="display:none;">
             <div style="text-align:center; padding:0.5rem 0;">
                 <div style="font-size:0.75rem; color:var(--gray-500); margin-bottom:0.25rem;">Token parowania:</div>
-                <div id="pairing-token-value"
-                    style="font-size:1.5rem; font-weight:700; color:var(--green-700); letter-spacing:0.1em; font-family:monospace;">
+                <div style="display:flex; align-items:center; justify-content:center; gap:0.5rem; margin-top:0.25rem;">
+                    <div id="pairing-token-value"
+                        style="font-size:1.5rem; font-weight:700; color:var(--green-700); letter-spacing:0.1em; font-family:monospace; margin-bottom:0;">
+                    </div>
+                    <button class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.7rem; width:auto; margin:0;" onclick="copyPairingToken(this)">Kopiuj</button>
                 </div>
                 <div id="pairing-timer" style="font-size:0.8rem; color:var(--gray-500); margin-top:0.5rem;"></div>
             </div>
@@ -49,63 +406,203 @@
         </div>
     </div>
 
-    <div class="info-card placeholder">
-        <h3>Sterowanie</h3>
-        <div style="padding:1rem 0">Panel sterowania urządzeniami<br>końcowymi — wkrótce.</div>
+    <!-- Integracja z Discordem -->
+    <div class="info-card placeholder" style="grid-column: span 2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 1.5rem;">
+        <h3 style="margin-bottom:0.25rem;">Centrum Powiadomień</h3>
+        <div style="color:var(--gray-500); font-size:0.85rem;">Integracja alertów hodowlanych (Discord / SMS) zostanie uruchomiona w kolejnej fazie deweloperskiej.</div>
     </div>
-    <div class="info-card placeholder">
-        <h3>Discord</h3>
-        <div style="padding:1rem 0">Integracja z Discordem — wkrótce.</div>
-    </div>
+
     {% if user.is_superuser %}
-    <div class="info-card" style="background: var(--green-50); border: 1px solid var(--green-200);">
+    <div class="info-card" style="background: var(--green-50); border: 1px solid var(--green-200); grid-column: span 2;">
         <h3 style="color: var(--green-800);">Panel Administracyjny</h3>
-        <div style="padding:1rem 0;">
-            <p style="font-size: 0.875rem; color: var(--green-700); margin-bottom: 0.75rem;">Zarządzaj kontami innych
-                użytkowników (Uprawnienia)</p>
-            <a href="{% url 'manage_users' %}" class="btn" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Przejdź do
-                zarządzania</a>
+        <div style="padding:0.5rem 0;">
+            <p style="font-size: 0.875rem; color: var(--green-700); margin-bottom: 0.75rem;">Zarządzaj kontami innych użytkowników oraz modyfikuj ich uprawnienia globalne.</p>
+            <a href="{% url 'manage_users' %}" class="btn" style="padding: 0.4rem 1rem; font-size: 0.8rem; width: auto; display: inline-block;">Przejdź do zarządzania</a>
         </div>
     </div>
     {% endif %}
 </div>
 
 <!-- Zarejestrowane Jednostki Centralne -->
-<h2 style="margin: 2rem 0 1rem; font-size: 1.1rem; color: var(--green-800); font-weight: 600;">
-    Twoje Jednostki Centralne
+<h2 style="margin: 2.5rem 0 1.25rem; font-size: 1.25rem; color: var(--green-800); font-weight: 700; border-bottom: 2px solid var(--green-100); padding-bottom: 0.5rem;">
+    Twoje Jednostki Centralne (Stacje)
 </h2>
 
 {% if devices %}
-<div style="display: flex; flex-direction: column; gap: 0.75rem;">
     {% for d in devices %}
-    <div style="background: white; border: 1px solid var(--gray-200); border-radius: 0.5rem; padding: 1rem 1.25rem;">
-        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-            <span style="font-family: monospace; font-size: 1rem; font-weight: 700; color: var(--green-700);">
-                {{ d.unit.device_id }}
-            </span>
-            <span style="font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px;
-                {% if d.role == 'admin' %}background: var(--green-100); color: var(--green-800);{% else %}background: var(--gray-100); color: var(--gray-600);{% endif %}">
-                {{ d.role }}
-            </span>
+    <div class="device-box">
+        <div class="device-header">
+            <div class="device-title">
+                <h2>STACJA: {{ d.unit.device_id }}</h2>
+                <span class="status-badge" style="{% if d.role == 'admin' %}background: var(--green-100); color: var(--green-800);{% else %}background: var(--gray-100); color: var(--gray-600);{% endif %}">
+                    Rola: {{ d.role }}
+                </span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <button class="btn btn-sm btn-off" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; margin: 0; background: var(--red-500); width: auto;" onclick="unregisterDevice('{{ d.unit.device_id }}')">
+                    Wyrejestruj stację
+                </button>
+                <div style="font-size: 0.8rem; color: var(--gray-500);">
+                    Zarejestrowano: {{ d.unit.registered_at|date:"d.m.Y H:i" }}
+                </div>
+            </div>
         </div>
-        <div style="font-size: 0.8rem; color: var(--gray-500);">
-            Zarejestrowano: {{ d.unit.registered_at|date:"d.m.Y H:i" }}
-            &nbsp;·&nbsp;
-            Lampy: <strong>{{ d.lamp_count }}</strong>
-            &nbsp;·&nbsp;
-            Zraszacze: <strong>{{ d.sprinkler_count }}</strong>
+
+        <div class="device-grid">
+            <!-- LEWA SEKCJA: ODCZYTY TELEMETRII I PANEL STEROWANIA -->
+            <div>
+                <!-- ODCZYTY TELEMETRII -->
+                <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--green-900); margin-bottom: 0.75rem;">
+                    Odczyty z czujników (Wizualizacja)
+                </h3>
+                <div class="sensors-grid">
+                    {% for p in d.peripherals %}
+                        {% if p.sensor_type %}
+                        <div class="sensor-card">
+                            <div class="sensor-header" style="display:flex; justify-content:space-between; align-items:center;">
+                                <span style="font-weight:700; color:var(--gray-700);">
+                                    {{ p.node_id }} &middot; 
+                                    <span style="font-weight:500; color:var(--gray-500); font-size:0.8rem;">
+                                        {% if p.sensor_type == 'temperature' %}Temperatura{% elif p.sensor_type == 'humidity' %}Wilgotność{% else %}Natężenie światła{% endif %}
+                                    </span>
+                                </span>
+                                <div class="time-range-group" id="range-group-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}">
+                                    <button class="btn-range" onclick="changeChartRange('{{ d.unit.device_id }}', '{{ p.node_id }}', '{{ p.sensor_type }}', '5m', this)">5m</button>
+                                    <button class="btn-range" onclick="changeChartRange('{{ d.unit.device_id }}', '{{ p.node_id }}', '{{ p.sensor_type }}', '15m', this)">15m</button>
+                                    <button class="btn-range" onclick="changeChartRange('{{ d.unit.device_id }}', '{{ p.node_id }}', '{{ p.sensor_type }}', '30m', this)">30m</button>
+                                    <button class="btn-range active" onclick="changeChartRange('{{ d.unit.device_id }}', '{{ p.node_id }}', '{{ p.sensor_type }}', 'all', this)">Wszystko</button>
+                                </div>
+                            </div>
+                            <div class="sensor-val" id="val-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}">
+                                <span class="num">--</span>
+                                <span class="sensor-unit">
+                                    {% if p.sensor_type == 'temperature' %}°C{% elif p.sensor_type == 'humidity' %}%{% else %}lux{% endif %}
+                                </span>
+                            </div>
+                            <div class="sensor-chart-container">
+                                <canvas id="chart-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}"></canvas>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% empty %}
+                        <div style="grid-column: span 2; text-align: center; color: var(--gray-400); font-size: 0.85rem; padding: 1.5rem; border: 1px dashed var(--gray-300); border-radius: var(--radius);">
+                            Brak aktywnych sensorów na tej stacji.
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <!-- PANEL STEROWANIA URZĄDZENIAMI -->
+                <div class="controls-box" style="background:transparent; border:none; padding:0; margin-bottom:1.5rem;">
+                    <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--green-900); margin-bottom: 0.75rem; border-bottom: 2px solid var(--green-100); padding-bottom: 0.5rem;">
+                        Panel Sterowania Peryferiami
+                    </h3>
+                    {% for p in d.peripherals %}
+                        {% if p.peripheral_type %}
+                        <div class="control-card">
+                            <div class="control-card-header">
+                                <div class="control-card-title">
+                                    {% if p.peripheral_type == 'LAMP' %}
+                                        <svg style="width:16px; height:16px; fill:var(--green-700);" viewBox="0 0 24 24"><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z" /></svg>
+                                    {% else %}
+                                        <svg style="width:16px; height:16px; fill:#3b82f6;" viewBox="0 0 24 24"><path d="M12,20A6,6 0 0,1 6,14C6,10 12,3.25 12,3.25C12,3.25 18,10 18,14A6,6 0 0,1 12,20Z" /></svg>
+                                    {% endif %}
+                                    <span>{{ p.node_id }} &middot; GPIO {{ p.gpio }}</span>
+                                    <span style="font-size:0.75rem; font-weight:700; color:var(--gray-400); text-transform:uppercase;">({{ p.peripheral_type }})</span>
+                                </div>
+                                <div class="control-card-status">
+                                    <div class="status-dot" id="led-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}"></div>
+                                    <span class="status-text" id="state-lbl-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}">WYŁĄCZONY</span>
+                                </div>
+                            </div>
+                            <div class="control-card-body">
+                                <div class="control-btn-group">
+                                    {% if p.peripheral_type == 'LAMP' %}
+                                        <button class="btn btn-sm" style="padding:0.35rem 0.85rem;" onclick="sendCmd('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'TURN_ON')">Włącz</button>
+                                        <button class="btn btn-sm btn-off" style="padding:0.35rem 0.85rem;" onclick="sendCmd('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'TURN_OFF')">Wyłącz</button>
+                                    {% elif p.peripheral_type == 'SPRINKLER' %}
+                                        <button class="btn btn-sm btn-off" style="padding:0.35rem 0.85rem;" onclick="sendCmd('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'TURN_OFF')">Wyłącz</button>
+                                    {% endif %}
+                                </div>
+                                <div class="control-btn-group">
+                                    {% if p.peripheral_type == 'LAMP' %}
+                                        <div class="control-input-group">
+                                            <input type="number" id="time-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" value="10" min="1" max="1440">
+                                            <span>min</span>
+                                        </div>
+                                        <button class="btn btn-sm btn-secondary" style="padding:0.35rem 0.85rem; width:auto;" onclick="sendCmdForTime('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'TURN_ON_FOR')">Uruchom na czas</button>
+                                    {% elif p.peripheral_type == 'SPRINKLER' %}
+                                        <div class="control-input-group">
+                                            <input type="number" id="time-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" value="15" min="1" max="240">
+                                            <span>min</span>
+                                        </div>
+                                        <button class="btn btn-sm" style="padding:0.35rem 0.85rem; width:auto; background:#2563eb;" onclick="sendCmdForTime('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'WATER_PUMP_ON')">Nawadniaj</button>
+                                    {% endif %}
+                                    <span id="status-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" class="status-msg" style="opacity: 0;"></span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% empty %}
+                        <div style="text-align: center; color: var(--gray-400); font-size: 0.85rem; padding: 1.5rem; border: 1px dashed var(--gray-300); border-radius: var(--radius); background:var(--gray-50);">
+                            Brak urządzeń sterowanych (LAMP / SPRINKLER).
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- PRAWA SEKCJA: KOLEJKA I HISTORIA KOMEND -->
+            <div>
+                <div class="logs-box">
+                    <h3>Dziennik Komend Stacji</h3>
+                    <div style="max-height: 330px; overflow-y: auto;">
+                        <table class="log-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 25%;">Czas</th>
+                                    <th style="width: 20%;">Węzeł (Pin)</th>
+                                    <th style="width: 35%;">Komenda</th>
+                                    <th style="width: 20%;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cmd-log-tbody-{{ d.unit.device_id }}">
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: var(--gray-500); padding: 2rem 0;">
+                                        Ładowanie historii komend...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     {% endfor %}
-</div>
 {% else %}
-<div style="background: var(--gray-50); border: 1px dashed var(--gray-300); border-radius: 0.5rem;
-            padding: 1.5rem; text-align: center; color: var(--gray-500); font-size: 0.875rem;">
-    Brak zarejestrowanych urządzeń. Użyj tokenu parowania, aby podłączyć Jednostkę Centralną.
-</div>
+    <div style="background: var(--gray-50); border: 1px dashed var(--gray-300); border-radius: 0.5rem;
+                padding: 2.5rem; text-align: center; color: var(--gray-500); font-size: 0.9rem;">
+        Brak przypisanych Jednostek Centralnych. Użyj przycisku "Generuj Token Parowania" i podłącz Raspberry Pi do systemu.
+    </div>
 {% endif %}
 
 <script>
+    // Time synchronization logic (server to client)
+    let serverTimeOffset = 0;
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+        const response = await originalFetch(...args);
+        const dateHeader = response.headers.get('Date');
+        if (dateHeader) {
+            const serverTime = new Date(dateHeader).getTime();
+            serverTimeOffset = serverTime - Date.now();
+        }
+        return response;
+    };
+    function getSyncedNow() {
+        return Date.now() + serverTimeOffset;
+    }
+
+    // ── ZMIENNE PAROWANIA ──
     function getCookie(name) {
         const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
         return v ? v.pop() : '';
@@ -134,6 +631,26 @@
         }
     }
 
+    function copyPairingToken(button) {
+        const token = document.getElementById('pairing-token-value').textContent.trim();
+        if (!token) return;
+        navigator.clipboard.writeText(token).then(() => {
+            if (button) {
+                const originalText = button.textContent;
+                button.textContent = 'Skopiowano!';
+                button.style.backgroundColor = 'var(--green-600)';
+                button.style.color = '#fff';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.backgroundColor = '';
+                    button.style.color = '';
+                }, 1500);
+            }
+        }).catch(err => {
+            alert('Nie udało się skopiować: ' + err);
+        });
+    }
+
     let timerInterval = null;
     function startTimer(seconds) {
         clearInterval(timerInterval);
@@ -160,6 +677,617 @@
         clearInterval(timerInterval);
         document.getElementById('pairing-content').style.display = 'block';
         document.getElementById('pairing-result').style.display = 'none';
+    }
+
+
+    // ── MONITOROWANIE I INTEGRACJA LIVE Z SYMULATOREM ──
+
+    // Konfiguracja sensorów wygenerowana przez Django do tablicy JS
+    const sensorConfigs = [
+        {% for d in devices %}
+            {% for p in d.peripherals %}
+                {% if p.sensor_type %}
+                {
+                    deviceId: "{{ d.unit.device_id }}",
+                    nodeId: "{{ p.node_id }}",
+                    sensorType: "{{ p.sensor_type }}",
+                    chartId: "chart-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}",
+                    valId: "val-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}"
+                },
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+    ];
+
+    const deviceIds = [
+        {% for d in devices %}
+        "{{ d.unit.device_id }}",
+        {% endfor %}
+    ];
+
+    const renderedPeripherals = {
+        {% for d in devices %}
+            "{{ d.unit.device_id }}": [
+                {% for p in d.peripherals %}
+                    "{{ p.node_id }}_{{ p.gpio|default:'' }}_{{ p.peripheral_type|default:'' }}_{{ p.sensor_type|default:'' }}",
+                {% endfor %}
+            ],
+        {% endfor %}
+    };
+
+    const charts = {}; // chartId -> Chart instance
+    const chartRanges = {}; // deviceId_nodeId_sensorType -> '5m' | '15m' | '30m' | 'all'
+
+    // Inicjalizacja Chart.js dla każdego sensora
+    document.addEventListener("DOMContentLoaded", () => {
+        sensorConfigs.forEach(conf => {
+            const ctx = document.getElementById(conf.chartId);
+            if (!ctx) return;
+
+            // Wybierz kolor na podstawie typu sensora
+            let labelText = "Temperatura (°C)";
+            let strokeColor = "#10b981"; // zielony dla temp
+            let fillColor = "rgba(16, 185, 129, 0.1)";
+            if (conf.sensorType === "humidity") {
+                labelText = "Wilgotność (%)";
+                strokeColor = "#3b82f6"; // niebieski dla wilgotności
+                fillColor = "rgba(59, 130, 246, 0.1)";
+            } else if (conf.sensorType === "light") {
+                labelText = "Natężenie światła (lux)";
+                strokeColor = "#f59e0b"; // bursztynowy dla światła
+                fillColor = "rgba(245, 158, 11, 0.1)";
+            }
+
+            charts[conf.chartId] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: labelText,
+                        data: [],
+                        borderColor: strokeColor,
+                        backgroundColor: fillColor,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                boxWidth: 10,
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                maxTicksLimit: 5,
+                                font: { size: 9 },
+                                color: "#9ca3af"
+                            }
+                        },
+                        y: {
+                            grid: { color: "rgba(243, 244, 246, 0.6)" },
+                            ticks: {
+                                font: { size: 9 },
+                                color: "#9ca3af"
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Pierwsze wczytanie danych telemetrycznych
+            updateTelemetry(conf);
+        });
+
+        // Pierwsze wczytanie logów komend dla każdego urządzenia
+        deviceIds.forEach(devId => {
+            updateCommandLog(devId);
+        });
+
+        // Uruchomienie cyklu pollingu (co 4 sekundy)
+        setInterval(() => {
+            try {
+                checkDevicesList();
+                sensorConfigs.forEach(conf => updateTelemetry(conf));
+                deviceIds.forEach(devId => updateCommandLog(devId));
+            } catch (err) {
+                console.error("Błąd w pętli pollingu:", err);
+            }
+        }, 4000);
+
+        // Uruchomienie precyzyjnego odliczania sekundowego
+        setInterval(() => {
+            // 1. Odliczanie w badges statusów
+            document.querySelectorAll(".countdown-timer").forEach(el => {
+                const endTime = parseInt(el.getAttribute("data-end-time"));
+                const remainingMs = endTime - getSyncedNow();
+                if (remainingMs <= 0) {
+                    el.textContent = "Ukończono";
+                    el.className = "badge-status badge-completed";
+                    el.style.backgroundColor = ""; // reset inline custom color if any
+                } else {
+                    const totalSec = Math.floor(remainingMs / 1000);
+                    el.textContent = `W trakcie (pozostało ${formatDuration(totalSec)})`;
+                }
+            });
+
+            // 2. Odliczanie na panelach kontrolnych
+            document.querySelectorAll(".dashboard-countdown").forEach(el => {
+                const endTime = parseInt(el.getAttribute("data-end-time"));
+                const remainingMs = endTime - getSyncedNow();
+                if (remainingMs <= 0) {
+                    el.textContent = "WYŁĄCZONY";
+                    el.style.color = "var(--gray-500)";
+                    el.className = "";
+                    
+                    // Wyłącz powiązaną diodę LED
+                    const ledId = el.getAttribute("data-led-id");
+                    const led = document.getElementById(ledId);
+                    if (led) {
+                        led.style.backgroundColor = "var(--gray-300)";
+                        led.style.boxShadow = "none";
+                    }
+                } else {
+                    const totalSec = Math.floor(remainingMs / 1000);
+                    const prefix = el.getAttribute("data-prefix");
+                    el.textContent = `${prefix}${formatDuration(totalSec)})`;
+                }
+            });
+        }, 1000);
+    });
+
+    // Sprawa wyboru zakresu czasu na wykresach
+    function changeChartRange(deviceId, nodeId, sensorType, range, button) {
+        const key = `${deviceId}_${nodeId}_${sensorType}`;
+        chartRanges[key] = range;
+
+        // Przełącz klasę aktywności na przyciskach w tej samej grupie
+        const group = button.parentElement;
+        group.querySelectorAll(".btn-range").forEach(btn => btn.classList.remove("active"));
+        button.classList.add("active");
+
+        // Wywołaj natychmiastowe odświeżenie wykresu
+        const conf = sensorConfigs.find(c => c.deviceId === deviceId && c.nodeId === nodeId && c.sensorType === sensorType);
+        if (conf) {
+            updateTelemetry(conf);
+        }
+    }
+
+    // Sprawdź czy lista zarejestrowanych stacji lub peryferiów uległa zmianie
+    async function checkDevicesList() {
+        try {
+            const resp = await fetch('/api/nodes/user-devices/');
+            if (!resp.ok) return;
+            const currentDevices = await resp.json();
+            
+            const currentIds = currentDevices.map(d => d.device_id).sort();
+            const renderedIds = [...deviceIds].sort();
+            
+            if (currentIds.length !== renderedIds.length) {
+                window.location.reload();
+                return;
+            }
+            
+            for (let i = 0; i < currentIds.length; i++) {
+                if (currentIds[i] !== renderedIds[i]) {
+                    window.location.reload();
+                    return;
+                }
+            }
+
+            // Sprawdź czy zaszła zmiana w peryferiach dowolnej ze stacji
+            for (const devId of deviceIds) {
+                const pResp = await fetch(`/api/nodes/peripherals/?device_id=${devId}`);
+                if (!pResp.ok) continue;
+                const pData = await pResp.json();
+                
+                const currentP = pData.peripherals.map(p => `${p.node_id}_${p.gpio || ''}_${p.peripheral_type || ''}_${p.sensor_type || ''}`).sort();
+                const renderedP = [...(renderedPeripherals[devId] || [])].sort();
+
+                if (currentP.length !== renderedP.length) {
+                    window.location.reload();
+                    return;
+                }
+                for (let i = 0; i < currentP.length; i++) {
+                    if (currentP[i] !== renderedP[i]) {
+                        window.location.reload();
+                        return;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Błąd sprawdzania stacji i konfiguracji", e);
+        }
+    }
+
+    // Wyszukaj i załaduj telemetrię z serwera (z uwzględnieniem wybranego limitu czasu)
+    async function updateTelemetry(conf) {
+        const key = `${conf.deviceId}_${conf.nodeId}_${conf.sensorType}`;
+        const selectedRange = chartRanges[key] || 'all';
+
+        try {
+            // Pobieramy ostatnie 150 wpisów, by starczyło do filtracji czasowej
+            const resp = await fetch(`/api/nodes/telemetry/?device_id=${conf.deviceId}&sensor_type=${conf.sensorType}&limit=150`);
+            if (!resp.ok) return;
+
+            const allReadings = await resp.json();
+            const valBox = document.getElementById(conf.valId);
+            const numEl = valBox ? valBox.querySelector(".num") : null;
+
+            if (allReadings.length > 0) {
+                const now = getSyncedNow();
+                const lastReading = allReadings[allReadings.length - 1];
+                const lastReadingTime = new Date(lastReading.recorded_at).getTime();
+
+                // Jeśli od ostatniego odczytu minęło więcej niż 12 sekund, uznaj stację za offline
+                const isTelemetryOffline = (now - lastReadingTime) > 12000;
+
+                // Wyświetl ostatni odczyt w nagłówku widgetu (0.0 jeśli telemetria nie dochodzi)
+                if (numEl) {
+                    if (isTelemetryOffline) {
+                        numEl.textContent = "0.0";
+                    } else {
+                        numEl.textContent = lastReading.value.toFixed(1);
+                    }
+                }
+
+                // Przefiltruj dane po stronie klienta zgodnie z wybranym zakresem czasu
+                let readings = [...allReadings];
+
+                let rangeMinutes = null;
+                if (selectedRange !== 'all') {
+                    if (selectedRange === '5m') rangeMinutes = 5;
+                    else if (selectedRange === '15m') rangeMinutes = 15;
+                    else if (selectedRange === '30m') rangeMinutes = 30;
+                }
+
+                if (rangeMinutes !== null) {
+                    const cutoff = now - rangeMinutes * 60 * 1000;
+                    readings = readings.filter(r => new Date(r.recorded_at).getTime() >= cutoff);
+                    
+                    // Jeśli po przefiltrowaniu nie ma punktów, ale istnieją starsze odczyty,
+                    // dodaj punkt na początku zakresu i na końcu zakresu.
+                    // Jeśli telemetria nie dochodzi, wartością domyślną jest 0, w przeciwnym razie ostatni pomiar.
+                    if (readings.length === 0) {
+                        const fallbackVal = isTelemetryOffline ? 0 : lastReading.value;
+                        readings = [
+                            { recorded_at: cutoff, value: fallbackVal },
+                            { recorded_at: now, value: fallbackVal }
+                        ];
+                    }
+                }
+
+                // Przepakuj dane do wykresu
+                const labels = readings.map(r => {
+                    const date = new Date(r.recorded_at);
+                    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                });
+                const values = readings.map(r => r.value);
+
+                // Zawsze dodaj punkt dla bieżącego czasu na końcu (jeśli jeszcze go nie ma), aby czas płynął płynnie
+                const nowTimeStr = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                if (labels.length > 0 && labels[labels.length - 1] !== nowTimeStr) {
+                    labels.push(nowTimeStr);
+                    const finalVal = isTelemetryOffline ? 0 : values[values.length - 1];
+                    values.push(finalVal);
+                }
+
+                const chart = charts[conf.chartId];
+                if (chart) {
+                    chart.data.labels = labels;
+                    chart.data.datasets[0].data = values;
+                    chart.update();
+                }
+            } else {
+                if (numEl) numEl.textContent = "0.0";
+            }
+        } catch (e) {
+            console.error("Błąd ładowania telemetrii", e);
+        }
+    }
+
+    // Wyszukaj i załaduj logi komend z serwera
+    async function updateCommandLog(deviceId) {
+        try {
+            const resp = await fetch(`/api/nodes/command/?device_id=${deviceId}&limit=20`);
+            if (!resp.ok) return;
+
+            const commands = await resp.json();
+            const tbody = document.getElementById(`cmd-log-tbody-${deviceId}`);
+            if (!tbody) return;
+
+            // Zaktualizuj stan LED oraz etykiet na panelu fizycznym
+            updateDashboardControlStates(deviceId, commands);
+
+            if (commands.length === 0) {
+                tbody.innerHTML = `<tr>
+                    <td colspan="4" style="text-align: center; color: var(--gray-500); padding: 1.5rem 0;">
+                        Brak wysłanych komend.
+                    </td>
+                </tr>`;
+                return;
+            }
+
+            // Oznaczamy ostatnią dostarczoną komendę dla każdego peryferium
+            const seenPeripherals = new Set();
+            commands.forEach(cmd => {
+                const key = `${cmd.node_id}_${cmd.gpio}`;
+                if (cmd.status === "delivered") {
+                    if (!seenPeripherals.has(key)) {
+                        cmd.isLatestDelivered = true;
+                        seenPeripherals.add(key);
+                    } else {
+                        cmd.isLatestDelivered = false;
+                    }
+                }
+            });
+
+            tbody.innerHTML = commands.map(cmd => {
+                const date = new Date(cmd.created_at);
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const paramStr = cmd.time ? ` (${cmd.time} min)` : "";
+                
+                let badgeClass = "badge-completed";
+                let badgeStyle = "";
+                let badgeLabel = "Ukończono";
+                let countdownAttr = "";
+
+                if (cmd.status === "pending") {
+                    badgeClass = "badge-pending";
+                    badgeLabel = "Oczekuje";
+                } else if (cmd.status === "delivered") {
+                    if ((cmd.command === "TURN_ON_FOR" || cmd.command === "WATER_PUMP_ON") && cmd.isLatestDelivered) {
+                        const deliveredTime = new Date(cmd.delivered_at).getTime();
+                        const durationMs = cmd.time * 60 * 1000;
+                        const endTime = deliveredTime + durationMs;
+                        const remainingMs = endTime - getSyncedNow();
+
+                        if (remainingMs > 0) {
+                            badgeClass = "badge-executing";
+                            badgeLabel = `W trakcie (pozostało ${formatDuration(Math.floor(remainingMs / 1000))})`;
+                            countdownAttr = ` class="badge-status badge-executing countdown-timer" data-end-time="${endTime}"`;
+                        } else {
+                            badgeClass = "badge-completed";
+                            badgeLabel = "Ukończono";
+                            badgeStyle = "background-color: var(--gray-500);";
+                        }
+                    } else if (cmd.command === "TURN_ON") {
+                        if (cmd.isLatestDelivered) {
+                            badgeClass = "badge-delivered";
+                            badgeLabel = "Aktywna (Włączona)";
+                        } else {
+                            badgeClass = "badge-completed";
+                            badgeLabel = "Ukończono";
+                            badgeStyle = "background-color: var(--gray-500);";
+                        }
+                    } else {
+                        badgeClass = "badge-completed";
+                        badgeLabel = "Ukończono";
+                        badgeStyle = "background-color: var(--gray-500);";
+                    }
+                }
+
+                const finalBadge = countdownAttr 
+                    ? `<span ${countdownAttr}>${badgeLabel}</span>`
+                    : `<span class="badge-status ${badgeClass}" style="${badgeStyle}">${badgeLabel}</span>`;
+
+                return `<tr>
+                    <td style="color:var(--gray-400);">${timeStr}</td>
+                    <td style="font-weight:600; color:var(--green-400);">${cmd.node_id} (pin ${cmd.gpio})</td>
+                    <td>${cmd.command}${paramStr}</td>
+                    <td>${finalBadge}</td>
+                </tr>`;
+            }).join("");
+        } catch (e) {
+            console.error("Błąd ładowania logów komend", e);
+        }
+    }
+
+    function formatDuration(totalSeconds) {
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    // Aktualizacja stanów fizycznych LED oraz statusów na panelu kontrolnym
+    function updateDashboardControlStates(deviceId, commands) {
+        const latestDelivered = {};
+        commands.forEach(cmd => {
+            const key = `${cmd.node_id}_${cmd.gpio}`;
+            if (cmd.status === "delivered" && !latestDelivered[key]) {
+                latestDelivered[key] = cmd;
+            }
+        });
+
+        const ledEls = document.querySelectorAll(`[id^="led-${deviceId}-"]`);
+        ledEls.forEach(led => {
+            const parts = led.id.split("-");
+            const nodeId = parts[2];
+            const gpio = parts[3];
+            const key = `${nodeId}_${gpio}`;
+            const stateLbl = document.getElementById(`state-lbl-${deviceId}-${nodeId}-${gpio}`);
+            if (!stateLbl) return;
+
+            const cmd = latestDelivered[key];
+            if (!cmd) {
+                led.style.backgroundColor = "var(--gray-300)";
+                led.style.boxShadow = "none";
+                stateLbl.textContent = "WYŁĄCZONY";
+                stateLbl.style.color = "var(--gray-500)";
+                stateLbl.className = "";
+                return;
+            }
+
+            if (cmd.command === "TURN_OFF") {
+                led.style.backgroundColor = "var(--gray-300)";
+                led.style.boxShadow = "none";
+                stateLbl.textContent = "WYŁĄCZONY";
+                stateLbl.style.color = "var(--gray-500)";
+                stateLbl.className = "";
+            } else if (cmd.command === "TURN_ON") {
+                led.style.backgroundColor = "var(--green-500)";
+                led.style.boxShadow = "0 0 8px var(--green-500)";
+                stateLbl.textContent = "WŁĄCZONY";
+                stateLbl.style.color = "var(--green-600)";
+                stateLbl.className = "";
+            } else if (cmd.command === "TURN_ON_FOR" || cmd.command === "WATER_PUMP_ON") {
+                const deliveredTime = new Date(cmd.delivered_at).getTime();
+                const durationMs = cmd.time * 60 * 1000;
+                const endTime = deliveredTime + durationMs;
+                const remainingMs = endTime - getSyncedNow();
+
+                const isLamp = cmd.peripheral_type === "LAMP";
+                const activeColor = isLamp ? "var(--green-500)" : "#2563eb";
+
+                if (remainingMs > 0) {
+                    led.style.backgroundColor = activeColor;
+                    led.style.boxShadow = `0 0 8px ${activeColor}`;
+                    stateLbl.style.color = isLamp ? "var(--green-600)" : "#1d4ed8";
+                    
+                    stateLbl.className = "dashboard-countdown";
+                    stateLbl.setAttribute("data-end-time", endTime.toString());
+                    stateLbl.setAttribute("data-prefix", isLamp ? "WŁĄCZONY (pozostało " : "NAWADNIANIE (pozostało ");
+                    stateLbl.setAttribute("data-led-id", led.id);
+                    
+                    const totalSec = Math.floor(remainingMs / 1000);
+                    stateLbl.textContent = (isLamp ? "WŁĄCZONY (pozostało " : "NAWADNIANIE (pozostało ") + `${formatDuration(totalSec)})`;
+                } else {
+                    led.style.backgroundColor = "var(--gray-300)";
+                    led.style.boxShadow = "none";
+                    stateLbl.textContent = "WYŁĄCZONY";
+                    stateLbl.style.color = "var(--gray-500)";
+                    stateLbl.className = "";
+                }
+            }
+        });
+    }
+
+    // Wysyłanie komend bez parametrów (np. TURN_ON, TURN_OFF)
+    async function sendCmd(deviceId, nodeId, gpio, cmdName) {
+        showCmdStatus(deviceId, nodeId, gpio, "Wysyłanie...", "var(--gray-500)");
+
+        try {
+            const resp = await fetch('/api/nodes/command/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    device_id: deviceId,
+                    node_id: nodeId,
+                    gpio: gpio,
+                    command: [cmdName]
+                })
+            });
+
+            const data = await resp.json();
+            if (resp.ok) {
+                showCmdStatus(deviceId, nodeId, gpio, "Zakolejkowano!", "var(--green-600)");
+                updateCommandLog(deviceId); // odśwież natychmiast log stacji
+            } else {
+                showCmdStatus(deviceId, nodeId, gpio, data.detail || "Błąd", "var(--red-500)");
+            }
+        } catch (e) {
+            showCmdStatus(deviceId, nodeId, gpio, "Błąd sieci", "var(--red-500)");
+        }
+    }
+
+    // Wysyłanie komend z czasem trwania (np. TURN_ON_FOR, WATER_PUMP_ON)
+    async function sendCmdForTime(deviceId, nodeId, gpio, cmdName) {
+        const input = document.getElementById(`time-${deviceId}-${nodeId}-${gpio}`);
+        const timeVal = input ? parseInt(input.value) : 10;
+
+        if (isNaN(timeVal) || timeVal <= 0) {
+            alert("Podaj prawidłowy czas w minutach (liczba dodatnia).");
+            return;
+        }
+
+        showCmdStatus(deviceId, nodeId, gpio, "Wysyłanie...", "var(--gray-500)");
+
+        try {
+            const resp = await fetch('/api/nodes/command/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    device_id: deviceId,
+                    node_id: nodeId,
+                    gpio: gpio,
+                    command: [cmdName, timeVal]
+                })
+            });
+
+            const data = await resp.json();
+            if (resp.ok) {
+                showCmdStatus(deviceId, nodeId, gpio, "Zakolejkowano!", "var(--green-600)");
+                updateCommandLog(deviceId); // odśwież natychmiast log stacji
+            } else {
+                showCmdStatus(deviceId, nodeId, gpio, data.detail || "Błąd", "var(--red-500)");
+            }
+        } catch (e) {
+            showCmdStatus(deviceId, nodeId, gpio, "Błąd sieci", "var(--red-500)");
+        }
+    }
+
+    function showCmdStatus(deviceId, nodeId, gpio, msg, color) {
+        const el = document.getElementById(`status-${deviceId}-${nodeId}-${gpio}`);
+        if (!el) return;
+
+        el.textContent = msg;
+        el.style.color = color;
+        el.style.opacity = "1";
+
+        // Ukryj komunikat po 3 sekundach
+        setTimeout(() => {
+            el.style.opacity = "0";
+        }, 3000);
+    }
+
+    async function unregisterDevice(deviceId) {
+        if (!confirm(`Czy na pewno chcesz całkowicie wyrejestrować i usunąć stację ${deviceId}? Wszystkie powiązane odczyty i dane zostaną usunięte.`)) {
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/nodes/register-device/', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    device_id: deviceId
+                })
+            });
+
+            const data = await resp.json();
+            if (resp.ok) {
+                alert("Stacja została pomyślnie wyrejestrowana.");
+                window.location.reload();
+            } else {
+                alert("Błąd wyrejestrowania stacji: " + (data.detail || JSON.stringify(data)));
+            }
+        } catch (e) {
+            alert("Błąd połączenia z serwerem: " + e.message);
+        }
     }
 </script>
 {% endblock %}

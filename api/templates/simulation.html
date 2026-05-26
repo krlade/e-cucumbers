@@ -1,0 +1,1324 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Symulator Jednostki Centralnej — E-Cucumbers{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sim-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 800px) {
+        .sim-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .sim-card {
+        background: white;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 1.5rem;
+        border: 1px solid var(--gray-200);
+        margin-bottom: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .sim-card h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--green-800);
+        border-bottom: 2px solid var(--green-50);
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        font-weight: 600;
+    }
+
+    .status-connected {
+        background: var(--green-100);
+        color: var(--green-800);
+    }
+
+    .status-disconnected {
+        background: var(--red-50);
+        color: var(--red-500);
+    }
+
+    .console {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.85rem;
+        border-radius: var(--radius);
+        padding: 1rem;
+        height: 380px;
+        overflow-y: auto;
+        border: 1px solid #333;
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .console-line {
+        margin-bottom: 0.35rem;
+        line-height: 1.35;
+        white-space: pre-wrap;
+    }
+
+    .console-sys { color: #569cd6; }
+    .console-api { color: #4ec9b0; }
+    .console-telemetry { color: #9cdcfe; }
+    .console-cmd { color: #ce9178; }
+    .console-err { color: #f44747; }
+    .console-ok { color: #6a9955; }
+
+    .node-row {
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .node-info {
+        flex: 1;
+    }
+
+    .node-id-lbl {
+        font-weight: 600;
+        color: var(--gray-900);
+        font-size: 0.9rem;
+    }
+
+    .node-details-lbl {
+        font-size: 0.75rem;
+        color: var(--gray-500);
+        margin-top: 0.15rem;
+    }
+
+    .btn-danger-sm {
+        background: #fee2e2;
+        color: #ef4444;
+        border: none;
+        border-radius: 4px;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .btn-danger-sm:hover {
+        background: #fca5a5;
+        color: #b91c1c;
+    }
+
+    .btn-secondary {
+        background: var(--gray-100);
+        color: var(--gray-700);
+        border: 1px solid var(--gray-300);
+    }
+    .btn-secondary:hover {
+        background: var(--gray-200);
+    }
+
+    .form-inline {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 0.5rem;
+        align-items: flex-end;
+    }
+
+    .pulse-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background-color: var(--green-500);
+        border-radius: 50%;
+        margin-right: 6px;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+    }
+
+    .pulse-active {
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        }
+        70% {
+            transform: scale(1);
+            box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+        }
+        100% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+        }
+    }
+
+    .save-indicator {
+        font-size: 0.75rem;
+        color: var(--gray-500);
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>Symulator Jednostki Centralnej (Gateway)</h1>
+    <p>Narzędzie deweloperskie do symulacji fizycznej stacji kontrolnej (Raspberry Pi/Pico).</p>
+</div>
+
+<!-- PANEL GDY URZĄDZENIE NIE JEST ZAREJESTROWANE -->
+<div id="unregistered-panel" class="card" style="max-width: 500px; display: none;">
+    <h1>Rejestracja Symulatora</h1>
+    <p class="subtitle">Skonfiguruj wirtualną Jednostkę Centralną i połącz ją ze swoim kontem E-Cucumbers.</p>
+
+    <div class="form-group">
+        <label for="reg-device-id">ID Urządzenia (np. CENTRAL_RPi_99)</label>
+        <input type="text" id="reg-device-id" value="CENTRAL_SIM_01" placeholder="Wpisz unikalne ID stacji">
+    </div>
+
+    <div class="form-group">
+        <label for="reg-pairing-token">Token parowania (z Dashboardu)</label>
+        <input type="text" id="reg-pairing-token" placeholder="TEMP-XXXX">
+    </div>
+
+    <button class="btn" onclick="registerDevice()">Zarejestruj i uruchom stację</button>
+    <div style="text-align: center; margin-top: 1rem; font-size: 0.8rem; color: var(--gray-500);">
+        Wskazówka: Wygeneruj token parowania na głównym <a href="{% url 'dashboard' %}" target="_blank">Dashboardzie</a>.
+    </div>
+</div>
+
+<!-- PANEL GŁÓWNY SYMULATORA -->
+<div id="registered-panel" class="sim-container" style="display: none;">
+    <!-- LEWA KOLUMNA: USTAWIENIA URZĄDZENIA, WĘZŁY I LOGI -->
+    <div>
+        <!-- INFO CARD -->
+        <div class="sim-card">
+            <h2>
+                Urządzenie
+                <span id="status-badge" class="status-badge status-connected">Połączono</span>
+            </h2>
+            <div style="font-size: 0.875rem; display: flex; flex-direction: column; gap: 0.35rem;">
+                <div>ID Jednostki: <strong id="info-device-id" style="font-family: monospace;">-</strong></div>
+                <div>Status autoryzacji JWT: <span id="info-jwt" style="color: var(--green-600); font-weight: 500;">Ważny</span></div>
+            </div>
+            <button class="btn btn-secondary" style="padding: 0.4rem; font-size: 0.8rem; width: auto; align-self: flex-start;" onclick="factoryReset()">
+                Factory Reset (Rozłącz stację)
+            </button>
+        </div>
+
+        <!-- PERIPHERALS CARD -->
+        <div class="sim-card">
+            <h2 style="margin-bottom: 0;">
+                Węzły Końcowe (Peryferia)
+                <span id="sync-status" class="save-indicator" style="display: none;">
+                    <span class="pulse-indicator pulse-active" style="background-color: var(--gray-500); margin:0;"></span>
+                    Zapisywanie...
+                </span>
+                <span id="sync-ok" class="save-indicator" style="color: var(--green-600);">
+                    ✓ Zsynchronizowano
+                </span>
+            </h2>
+            <p style="font-size: 0.8rem; color: var(--gray-500); margin-bottom: 0.5rem;">
+                Każdy węzeł fizyczny (node_id) musi posiadać co najmniej czujnik lub pin GPIO z elementem sterowanym. Zmiany wysyłają automatyczny update na endpoint.
+            </p>
+
+            <!-- Lista węzłów -->
+            <div id="nodes-list" style="max-height: 250px; overflow-y: auto; margin-bottom: 1rem;">
+                <!-- Węzły renderowane dynamicznie -->
+            </div>
+
+            <!-- Formularz dodawania węzła -->
+            <div style="border-top: 1px solid var(--gray-200); padding-top: 0.75rem;">
+                <h4 style="font-size: 0.85rem; font-weight: 600; color: var(--gray-700); margin-bottom: 0.5rem;">Dodaj nowy węzeł</h4>
+                <div class="form-inline">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">ID Węzła</label>
+                        <input type="text" id="add-node-id" value="Pico_01" style="padding: 0.4rem; font-size: 0.8rem;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">GPIO (Sterowane)</label>
+                        <input type="number" id="add-gpio" value="" placeholder="np. 1" min="0" max="40" style="padding: 0.4rem; font-size: 0.8rem;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">Typ Periferia</label>
+                        <select id="add-peripheral-type" style="width: 100%; padding: 0.4rem; font-size: 0.8rem; border-radius: var(--radius); border: 1px solid var(--gray-300);">
+                            <option value="">Brak</option>
+                            <option value="LAMP">LAMP (Lampa)</option>
+                            <option value="SPRINKLER">SPRINKLER (Zraszacz)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">Typ Czujnika</label>
+                        <select id="add-sensor-type" style="width: 100%; padding: 0.4rem; font-size: 0.8rem; border-radius: var(--radius); border: 1px solid var(--gray-300);">
+                            <option value="">Brak</option>
+                            <option value="temperature">Temperatura (°C)</option>
+                            <option value="humidity">Wilgotność (%)</option>
+                            <option value="light">Światło (lux)</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="add-node-error" class="alert alert-error" style="display: none; margin-top: 0.75rem; margin-bottom: 0.25rem; padding: 0.5rem 0.75rem;"></div>
+                <button class="btn" style="margin-top: 0.75rem; padding: 0.4rem; font-size: 0.8rem;" onclick="addNewNode()">Dodaj Węzeł</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRAWA KOLUMNA: TRANSMISJA TELEMETRII I POLLE HARATBEAT -->
+    <div>
+        <!-- HEARTBEAT CONTROL -->
+        <div class="sim-card">
+            <h2>
+                Heartbeat & Odbiór Komend
+                <span style="display: flex; align-items: center; font-size: 0.8rem;">
+                    <span id="hb-pulse" class="pulse-indicator"></span>
+                    <span id="hb-status-lbl">Nieaktywny</span>
+                </span>
+            </h2>
+            <div class="form-inline" style="grid-template-columns: 1fr 1fr; align-items: center;">
+                <div class="form-group" style="margin:0;">
+                    <label style="font-size: 0.75rem;">Częstotliwość (sek.)</label>
+                    <input type="number" id="hb-interval" value="5" min="2" max="60" style="padding: 0.4rem; font-size: 0.8rem;">
+                </div>
+                <div>
+                    <button id="btn-hb-toggle" class="btn" style="padding: 0.5rem; font-size: 0.8rem;" onclick="toggleHeartbeat()">Uruchom Heartbeat</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STAN URZĄDZEŃ STEROWANYCH -->
+        <div class="sim-card">
+            <h2>Stan Urządzeń Sterowanych</h2>
+            <p style="font-size: 0.8rem; color: var(--gray-500); margin-bottom: 0.5rem;">
+                Bieżący stan wyjść fizycznych (zmienia się pod wpływem przychodzących komend):
+            </p>
+            <div id="device-states-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <!-- Kontrolki stanów renderowane dynamicznie -->
+            </div>
+        </div>
+
+        <!-- TELEMETRIA CONTROL -->
+        <div class="sim-card">
+            <h2>
+                Wysyłanie Telemetrii
+                <span id="telemetry-sync-lbl" style="font-size: 0.75rem; color: var(--gray-500);">Gotowy</span>
+            </h2>
+            <p style="font-size: 0.8rem; color: var(--gray-500); margin-bottom: 0.5rem;">
+                Dla każdego węzła z czujnikiem określ jak mają się zmieniać dane. Włącz automatyczną wysyłkę, aby aktualizować bazę danych.
+            </p>
+
+            <div id="telemetry-sim-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <!-- Telemetria renderowana dynamicznie na bazie peryferiów z czujnikiem -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DOLNA SEKCJA: TERMINAL LOGÓW (NA PEŁNĄ SZEROKOŚĆ) -->
+<div class="sim-container" style="grid-template-columns: 1fr; margin-top: 1.5rem; display: none;" id="logs-panel">
+    <div class="sim-card" style="margin-bottom: 0;">
+        <h2 style="margin-bottom: 0.5rem;">
+            Konsola Logów Stacji
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.75rem; width: auto;" onclick="clearLogs()">Wyczyść</button>
+                <button class="btn btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.75rem; width: auto;" onclick="copyLogs(this)">Kopiuj</button>
+            </div>
+        </h2>
+        <div class="console" id="console-output">
+            <!-- Tutaj wpadają logi -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // Time synchronization logic (server to client)
+    let serverTimeOffset = 0;
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+        const response = await originalFetch(...args);
+        const dateHeader = response.headers.get('Date');
+        if (dateHeader) {
+            const serverTime = new Date(dateHeader).getTime();
+            serverTimeOffset = serverTime - Date.now();
+        }
+        return response;
+    };
+    function getSyncedNow() {
+        return Date.now() + serverTimeOffset;
+    }
+
+    // ── ZMIENNE STANU SYMULATORA ──
+    let state = {
+        deviceId: '',
+        accessToken: '',
+        refreshToken: '',
+        owner: '',
+        peripherals: [
+            { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP', sensor_type: 'temperature' },
+            { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER', sensor_type: 'humidity' }
+        ],
+        heartbeatEnabled: false,
+        heartbeatInterval: 5,
+        telemetryStates: {}
+    };
+
+    let heartbeatIntervalId = null;
+    let heartbeatTimeRemaining = 0;
+    let telemetryTimers = {}; // node_id -> timerIntervalId
+    let telemetryFrequencies = {}; // timerKey -> frequency (number)
+    let sineTime = {}; // node_id -> counters for sine values
+
+    // ── INICJALIZACJA STRONY ──
+    document.addEventListener("DOMContentLoaded", () => {
+        loadState();
+        if (state.accessToken && state.deviceId) {
+            showPanel(true);
+            logSystem("Symulator zainicjalizowany ze stanu localStorage.");
+            logSystem(`Stacja: ${state.deviceId}, Właściciel: ${state.owner}`);
+            renderPeripherals();
+            renderTelemetryControls();
+            
+            const intervalInput = document.getElementById("hb-interval");
+            if (intervalInput) {
+                if (state.heartbeatInterval) {
+                    intervalInput.value = state.heartbeatInterval;
+                }
+                intervalInput.addEventListener("change", () => {
+                    const val = parseInt(intervalInput.value) || 5;
+                    if (val >= 2) {
+                        state.heartbeatInterval = val;
+                        saveState();
+                        if (heartbeatIntervalId) {
+                            stopHeartbeat();
+                            startHeartbeat();
+                        }
+                    }
+                });
+            }
+
+            // Weryfikacja aktywnego połączenia z serwerem na starcie
+            verifyDeviceConnection();
+        } else {
+            showPanel(false);
+        }
+    });
+
+    async function verifyDeviceConnection() {
+        logSystem("Weryfikacja autoryzacji stacji na serwerze...");
+        const res = await apiRequest("POST", "/api/nodes/heartbeat/");
+        if (res.ok) {
+            logSystem.ok("Połączenie i autoryzacja stacji zweryfikowane pomyślnie.");
+            document.getElementById("status-badge").textContent = "Połączono";
+            document.getElementById("status-badge").className = "status-badge status-connected";
+            document.getElementById("info-jwt").textContent = "Ważny";
+            document.getElementById("info-jwt").style.color = "var(--green-600)";
+            await syncPeripheralsToServer();
+            renderTelemetryControls();
+            await restoreActiveStatesFromHistory();
+
+            if (state.heartbeatEnabled) {
+                startHeartbeat();
+            }
+            startActiveTelemetries();
+        }
+    }
+
+    function showPanel(isRegistered) {
+        document.getElementById("unregistered-panel").style.display = isRegistered ? "none" : "block";
+        document.getElementById("registered-panel").style.display = isRegistered ? "grid" : "none";
+        document.getElementById("logs-panel").style.display = isRegistered ? "block" : "none";
+
+        if (isRegistered) {
+            document.getElementById("info-device-id").textContent = state.deviceId;
+        }
+    }
+
+    // ── LOCAL STORAGE HELPERS ──
+    function loadState() {
+        const raw = localStorage.getItem("e_cucumbers_sim_state");
+        if (raw) {
+            try {
+                state = JSON.parse(raw);
+                if (!state.peripherals || state.peripherals.length === 0) {
+                    state.peripherals = [
+                        { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP', sensor_type: 'temperature' },
+                        { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER', sensor_type: 'humidity' }
+                    ];
+                }
+                if (state.heartbeatEnabled === undefined) state.heartbeatEnabled = false;
+                if (state.heartbeatInterval === undefined) state.heartbeatInterval = 5;
+                if (state.telemetryStates === undefined) state.telemetryStates = {};
+            } catch (e) {
+                console.error("Błąd wczytywania stanu", e);
+            }
+        } else {
+            state.peripherals = [
+                { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP', sensor_type: 'temperature' },
+                { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER', sensor_type: 'humidity' }
+            ];
+            state.heartbeatEnabled = false;
+            state.heartbeatInterval = 5;
+            state.telemetryStates = {};
+        }
+    }
+
+    function saveState() {
+        localStorage.setItem("e_cucumbers_sim_state", JSON.stringify(state));
+    }
+
+    // ── KONSOLA LOGÓW ──
+    function logMessage(text, className = "console-sys") {
+        const consoleEl = document.getElementById("console-output");
+        if (!consoleEl) return;
+
+        const line = document.createElement("div");
+        line.className = `console-line ${className}`;
+        const time = new Date().toLocaleTimeString();
+        line.textContent = `[${time}] ${text}`;
+        consoleEl.appendChild(line);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function logSystem(txt) { logMessage(txt, "console-sys"); }
+    logSystem.ok = (txt) => logMessage(txt, "console-sys console-ok");
+    function logApi(txt) { logMessage(txt, "console-api"); }
+    logApi.err = (txt) => logMessage(txt, "console-api console-err");
+    logApi.ok = (txt) => logMessage(txt, "console-api console-ok");
+    function logTelemetry(txt) { logMessage(txt, "console-telemetry"); }
+    function logCommand(txt) { logMessage(txt, "console-cmd"); }
+
+    function clearLogs() {
+        const consoleEl = document.getElementById("console-output");
+        if (consoleEl) consoleEl.innerHTML = "";
+        logSystem("Wyczyszczono logi.");
+    }
+
+    function copyLogs(button) {
+        const consoleEl = document.getElementById("console-output");
+        if (!consoleEl) return;
+        const text = consoleEl.innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            if (button) {
+                const originalText = button.textContent;
+                button.textContent = "Skopiowano!";
+                button.style.backgroundColor = "var(--green-600)";
+                button.style.color = "#fff";
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.backgroundColor = "";
+                    button.style.color = "";
+                }, 1500);
+            }
+            logSystem.ok("Logi skopiowane do schowka.");
+        }).catch(err => {
+            logSystem.err("Nie udało się skopiować: " + err);
+        });
+    }
+
+    // ── COOKIE HELPER FOR CSRF ──
+    function getCookie(name) {
+        const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+        return v ? v.pop() : '';
+    }
+
+    // ── API FETCH WRAPPER (Z OBSŁUGĄ REFRESH TOKENA) ──
+    async function apiRequest(method, url, body = null) {
+        let headers = {
+            'Content-Type': 'application/json'
+        };
+        const csrfToken = getCookie('csrftoken');
+        if (csrfToken) {
+            headers['X-CSRFToken'] = csrfToken;
+        }
+        if (state.accessToken) {
+            headers['Authorization'] = `Bearer ${state.accessToken}`;
+        }
+
+        const config = {
+            method: method,
+            headers: headers
+        };
+        if (body) {
+            config.body = JSON.stringify(body);
+        }
+
+        try {
+            let response = await fetch(url, config);
+
+            // Jeśli wygasł token (401), spróbuj go odświeżyć
+            if (response.status === 401 && state.refreshToken) {
+                logSystem("Wykryto wygaśnięcie tokenu Access JWT. Próba odświeżenia...");
+                const refreshed = await refreshAccessToken();
+                if (refreshed) {
+                    // Ponów żądanie z nowym tokenem
+                    headers['Authorization'] = `Bearer ${state.accessToken}`;
+                    response = await fetch(url, config);
+                } else {
+                    logApi.err("Błąd krytyczny: Sesja JWT wygasła i nie można jej odświeżyć.");
+                    alert("Sesja wygasła. Stacja zostanie rozłączona.");
+                    factoryReset();
+                    throw new Error("Unauthorized");
+                }
+            }
+
+            // Jeśli po ewentualnym odświeżeniu status to nadal 401 lub 403,
+            // stacja nie istnieje już na serwerze (np. została wyrejestrowana z poziomu dashboardu)
+            if (response.status === 401 || response.status === 403) {
+                logApi.err(`Krytyczny błąd autoryzacji (${response.status}). Stacja prawdopodobnie została usunięta.`);
+                alert("Brak autoryzacji stacji na serwerze. Symulator zostanie wyrejestrowany i rozłączony.");
+                factoryReset();
+                return { status: response.status, data: { detail: "Unauthorized/Forbidden" }, ok: false };
+            }
+
+            const data = await response.json();
+            return { status: response.status, data: data, ok: response.ok };
+        } catch (error) {
+            console.error("API error details:", error);
+            return { status: 0, data: { detail: error.message }, ok: false };
+        }
+    }
+
+    async function refreshAccessToken() {
+        try {
+            const resp = await fetch("/api/accounts/token/refresh/", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh: state.refreshToken })
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                state.accessToken = data.access;
+                saveState();
+                logSystem.ok("Pomyślnie odświeżono token Access JWT.");
+                return true;
+            }
+        } catch (e) {
+            console.error("Refresh error", e);
+        }
+        return false;
+    }
+
+    // ── REJESTRACJA URZĄDZENIA (PAIRING) ──
+    async function registerDevice() {
+        const deviceId = document.getElementById("reg-device-id").value.trim();
+        const pairingToken = document.getElementById("reg-pairing-token").value.trim();
+
+        if (!deviceId || !pairingToken) {
+            alert("Podaj ID Urządzenia oraz Token parowania!");
+            return;
+        }
+
+        logSystem(`Rozpoczynam rejestrację urządzenia: ${deviceId}...`);
+
+        const res = await apiRequest("POST", "/api/nodes/register-device/", {
+            device_id: deviceId,
+            pairing_token: pairingToken
+        });
+
+        if (res.ok) {
+            state.deviceId = res.data.device_id;
+            state.accessToken = res.data.access;
+            state.refreshToken = res.data.refresh;
+            state.owner = res.data.owner;
+            saveState();
+
+            logApi.ok(`Urządzenie zarejestrowane! Właściciel: ${state.owner}`);
+            showPanel(true);
+
+            // Wyślij startową listę peryferiów (domyślnie pusta, lub jeśli była w localStorage)
+            await syncPeripheralsToServer();
+            renderTelemetryControls();
+            await restoreActiveStatesFromHistory();
+        } else {
+            logApi.err(`Rejestracja odrzucona: ${res.data.detail || JSON.stringify(res.data)}`);
+            alert("Błąd rejestracji: " + (res.data.detail || "Sprawdź poprawność tokenu."));
+        }
+    }
+
+    // ── FACTORY RESET (ROZŁĄCZENIE) ──
+    function factoryReset() {
+        // Zatrzymaj timery
+        if (heartbeatIntervalId) {
+            clearInterval(heartbeatIntervalId);
+            heartbeatIntervalId = null;
+        }
+        for (let key in telemetryTimers) {
+            clearInterval(telemetryTimers[key]);
+        }
+        telemetryTimers = {};
+
+        // Wyczyść stan
+        state = {
+            deviceId: '',
+            accessToken: '',
+            refreshToken: '',
+            owner: '',
+            peripherals: [
+                { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP', sensor_type: 'temperature' },
+                { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER', sensor_type: 'humidity' }
+            ]
+        };
+        saveState();
+        showPanel(false);
+        clearLogs();
+        logSystem("Wykonano Factory Reset. Stacja rozłączona.");
+    }
+
+    // ── ZARZĄDZANIE WĘZŁAMI (PERIPHERALS) ──
+    function renderPeripherals() {
+        const container = document.getElementById("nodes-list");
+        container.innerHTML = "";
+
+        if (state.peripherals.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding: 1rem; color: var(--gray-500); font-size: 0.85rem;">
+                Brak skonfigurowanych węzłów. Dodaj węzeł poniżej.
+            </div>`;
+            return;
+        }
+
+        state.peripherals.forEach((n, index) => {
+            const row = document.createElement("div");
+            row.className = "node-row";
+
+            let details = [];
+            if (n.peripheral_type) details.push(`Sterowanie: ${n.peripheral_type} (GPIO ${n.gpio})`);
+            if (n.sensor_type) details.push(`Czujnik: ${n.sensor_type}`);
+
+            row.innerHTML = `
+                <div class="node-info">
+                    <div class="node-id-lbl">${n.node_id}</div>
+                    <div class="node-details-lbl">${details.join(" · ")}</div>
+                </div>
+                <button class="btn-danger-sm" onclick="removeNode(${index})">Usuń</button>
+            `;
+            container.appendChild(row);
+        });
+
+        // Wygeneruj stany urządzeń w prawym panelu
+        renderDeviceStates();
+    }
+
+    let debounceTimeout = null;
+    function triggerAutoSync() {
+        document.getElementById("sync-status").style.display = "flex";
+        document.getElementById("sync-ok").style.display = "none";
+
+        if (debounceTimeout) clearTimeout(debounceTimeout);
+
+        debounceTimeout = setTimeout(async () => {
+            await syncPeripheralsToServer();
+        }, 1200);
+    }
+
+    async function syncPeripheralsToServer() {
+        if (!state.accessToken) return;
+
+        logSystem("Automatyczna synchronizacja peryferiów z serwerem...");
+        
+        // Przygotuj payload
+        // Serializer oczekuje: { device_id: string, peripherals: [ { node_id, gpio, peripheral_type, sensor_type } ] }
+        const payloadPeripherals = state.peripherals.map(p => {
+            return {
+                node_id: p.node_id,
+                gpio: p.gpio !== null && p.gpio !== "" ? parseInt(p.gpio) : null,
+                peripheral_type: p.peripheral_type || null,
+                sensor_type: p.sensor_type || null
+            };
+        });
+
+        const res = await apiRequest("POST", "/api/nodes/register-peripherals/", {
+            device_id: state.deviceId,
+            peripherals: payloadPeripherals
+        });
+
+        document.getElementById("sync-status").style.display = "none";
+
+        if (res.ok) {
+            document.getElementById("sync-ok").style.display = "inline";
+            logApi.ok(`Zsynchronizowano konfigurację! Zarejestrowano węzłów: ${res.data.registered_count}`);
+            
+            // Odśwież widok generatora telemetrii
+            renderTelemetryControls();
+        } else {
+            logApi.err(`Błąd synchronizacji konfiguracji: ${JSON.stringify(res.data)}`);
+            document.getElementById("sync-ok").style.display = "none";
+            alert("Błąd synchronizacji: " + JSON.stringify(res.data));
+        }
+    }
+
+    function showNodeError(msg) {
+        const errDiv = document.getElementById("add-node-error");
+        if (!errDiv) return;
+        if (msg) {
+            errDiv.textContent = msg;
+            errDiv.style.display = "block";
+        } else {
+            errDiv.style.display = "none";
+        }
+    }
+
+    function addNewNode() {
+        showNodeError(null);
+        const nodeId = document.getElementById("add-node-id").value.trim();
+        const gpioVal = document.getElementById("add-gpio").value.trim();
+        const peripheralType = document.getElementById("add-peripheral-type").value;
+        const sensorType = document.getElementById("add-sensor-type").value;
+
+        if (!nodeId) {
+            showNodeError("ID węzła jest wymagane!");
+            return;
+        }
+
+        const hasPeripheral = (gpioVal !== "" && peripheralType !== "");
+        const hasSensor = (sensorType !== "");
+
+        if (!hasPeripheral && !hasSensor) {
+            showNodeError("Węzeł musi mieć czujnik lub element sterowany (GPIO + Typ urządzenia)!");
+            return;
+        }
+
+        if ((gpioVal !== "") !== (peripheralType !== "")) {
+            showNodeError("Aby dodać element sterowany, musisz podać ZARÓWNO numer pinu GPIO, jak i typ urządzenia.");
+            return;
+        }
+
+        // Sprawdź czy nie ma duplikatu dla nazwy node_id (case-insensitive)
+        const isDuplicate = state.peripherals.some(p => p.node_id.trim().toLowerCase() === nodeId.trim().toLowerCase());
+        if (isDuplicate) {
+            showNodeError(`Węzeł o nazwie '${nodeId}' już istnieje! Każdy węzeł końcowy (node_id) musi mieć unikalną nazwę.`);
+            return;
+        }
+
+        const gpioInt = gpioVal !== "" ? parseInt(gpioVal) : null;
+        state.peripherals.push({
+            node_id: nodeId,
+            gpio: gpioInt,
+            peripheral_type: peripheralType,
+            sensor_type: sensorType
+        });
+
+        saveState();
+        renderPeripherals();
+        triggerAutoSync();
+    }
+
+    function removeNode(index) {
+        const node = state.peripherals[index];
+        // Wyłącz timer telemetrii dla tego węzła jeśli istniał
+        const timerKey = `${node.node_id}_${node.sensor_type}`;
+        if (telemetryTimers[timerKey]) {
+            clearInterval(telemetryTimers[timerKey]);
+            delete telemetryTimers[timerKey];
+        }
+        if (state.telemetryStates && state.telemetryStates[timerKey]) {
+            delete state.telemetryStates[timerKey];
+        }
+
+        state.peripherals.splice(index, 1);
+        saveState();
+        renderPeripherals();
+        triggerAutoSync();
+    }
+
+    // ── SIMULATING TELEMETRY ──
+    function renderTelemetryControls() {
+        const container = document.getElementById("telemetry-sim-list");
+        container.innerHTML = "";
+
+        const nodesWithSensors = state.peripherals.filter(p => p.sensor_type);
+
+        if (nodesWithSensors.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding: 1rem; color: var(--gray-500); font-size: 0.85rem;">
+                Brak czujników w konfiguracji. Dodaj węzeł z czujnikiem, aby symulować telemetrię.
+            </div>`;
+            return;
+        }
+
+        nodesWithSensors.forEach(n => {
+            const timerKey = `${n.node_id}_${n.sensor_type}`;
+            const row = document.createElement("div");
+            row.style.background = "var(--gray-50)";
+            row.style.border = "1px solid var(--gray-200)";
+            row.style.borderRadius = "var(--radius)";
+            row.style.padding = "0.75rem";
+            row.style.display = "flex";
+            row.style.flexDirection = "column";
+            row.style.gap = "0.5rem";
+
+            // Domyślne wartości dla różnych sensorów
+            let minVal = 0, maxVal = 100, step = 1, defaultVal = 20, unit = "";
+            if (n.sensor_type === "temperature") {
+                minVal = 10; maxVal = 45; step = 0.1; defaultVal = 24.5; unit = "°C";
+            } else if (n.sensor_type === "humidity") {
+                minVal = 20; maxVal = 99; step = 1; defaultVal = 65; unit = "%";
+            } else if (n.sensor_type === "light") {
+                minVal = 0; maxVal = 20000; step = 10; defaultVal = 5000; unit = "lux";
+            }
+
+            // Odczytaj stan z state lub nadaj domyślny
+            if (!state.telemetryStates[timerKey]) {
+                state.telemetryStates[timerKey] = { isRunning: false, mode: 'manual', value: defaultVal };
+            }
+            const tState = state.telemetryStates[timerKey];
+            const currentVal = tState.value !== undefined ? tState.value : defaultVal;
+            const currentMode = tState.mode || 'manual';
+
+            const isRunning = !!telemetryTimers[timerKey];
+            const btnText = isRunning ? "Stop" : "Start";
+            const btnBg = isRunning ? "var(--red-500)" : "#22c55e"; // vibrant green
+
+            row.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:600; font-size:0.85rem; color:var(--green-900);">${n.node_id} [${n.sensor_type}]</span>
+                    <span id="val-lbl-${timerKey}" style="font-family:monospace; font-weight:700; color:var(--green-700); font-size:0.9rem;">${currentVal} ${unit}</span>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr auto; gap:0.5rem; align-items:center;">
+                    <input type="range" id="val-slider-${timerKey}" min="${minVal}" max="${maxVal}" step="${step}" value="${currentVal}" 
+                        style="width:100%; accent-color:var(--green-600);" oninput="updateValLabel('${timerKey}', this.value, '${unit}')">
+                    <input type="number" id="val-input-${timerKey}" value="${currentVal}" step="${step}" style="width:70px; padding:0.25rem; font-size:0.8rem; text-align:right;"
+                        oninput="updateValSlider('${timerKey}', this.value, '${unit}')">
+                </div>
+                <div class="form-inline" style="grid-template-columns: 1fr 1fr; gap:0.5rem; align-items:center;">
+                    <select id="mode-${timerKey}" style="padding:0.25rem; font-size:0.75rem; border-radius:4px; border:1px solid var(--gray-300);" onchange="changeTelemMode('${timerKey}')">
+                        <option value="manual" ${currentMode === 'manual' ? 'selected' : ''}>Manualny (Suwak)</option>
+                        <option value="random" ${currentMode === 'random' ? 'selected' : ''}>Losowy (Szum)</option>
+                        <option value="sine" ${currentMode === 'sine' ? 'selected' : ''}>Sinusoida (Autogrow)</option>
+                    </select>
+                    <button id="btn-telem-${timerKey}" class="btn" style="padding:0.3rem 0.5rem; font-size:0.75rem; background:${btnBg};" onclick="toggleTelemetrySending('${n.node_id}', '${n.sensor_type}')">
+                        ${btnText}
+                    </button>
+                </div>
+            `;
+            container.appendChild(row);
+
+            // Inicjalizuj licznik czasu dla sinusoidy
+            sineTime[timerKey] = 0;
+        });
+    }
+
+    function updateValLabel(key, val, unit) {
+        document.getElementById(`val-lbl-${key}`).textContent = `${parseFloat(val).toFixed(1)} ${unit}`;
+        document.getElementById(`val-input-${key}`).value = val;
+
+        if (state.telemetryStates[key]) {
+            state.telemetryStates[key].value = parseFloat(val);
+            saveState();
+        }
+    }
+
+    function updateValSlider(key, val, unit) {
+        document.getElementById(`val-slider-${key}`).value = val;
+        document.getElementById(`val-lbl-${key}`).textContent = `${parseFloat(val).toFixed(1)} ${unit}`;
+
+        if (state.telemetryStates[key]) {
+            state.telemetryStates[key].value = parseFloat(val);
+            saveState();
+        }
+    }
+
+    function changeTelemMode(key) {
+        const select = document.getElementById(`mode-${key}`);
+        logSystem(`Zmieniono tryb generowania dla ${key} na: ${select.value}`);
+
+        if (state.telemetryStates[key]) {
+            state.telemetryStates[key].mode = select.value;
+            saveState();
+        }
+    }
+
+    function toggleTelemetrySending(nodeId, sensorType) {
+        const timerKey = `${nodeId}_${sensorType}`;
+        const btn = document.getElementById(`btn-telem-${timerKey}`);
+
+        if (!state.telemetryStates[timerKey]) {
+            state.telemetryStates[timerKey] = { isRunning: false, mode: 'manual', value: 20 };
+        }
+
+        if (telemetryTimers[timerKey]) {
+            // Zatrzymaj wysyłanie
+            clearInterval(telemetryTimers[timerKey]);
+            delete telemetryTimers[timerKey];
+            btn.textContent = "Start";
+            btn.style.background = "#22c55e"; // vibrant green
+            logTelemetry(`Zatrzymano wysyłanie telemetrii dla ${nodeId} [${sensorType}].`);
+
+            state.telemetryStates[timerKey].isRunning = false;
+            saveState();
+        } else {
+            // Uruchom wysyłanie
+            const freq = 5;
+            telemetryFrequencies[timerKey] = freq;
+
+            btn.textContent = "Stop";
+            btn.style.background = "var(--red-500)";
+            logTelemetry(`Uruchomiono wysyłanie telemetrii dla ${nodeId} [${sensorType}] co ${freq}s.`);
+
+            state.telemetryStates[timerKey].isRunning = true;
+            saveState();
+
+            // Natychmiastowa pierwsza wysyłka
+            sendTelemetryData(nodeId, sensorType);
+
+            // Cykliczne wysyłanie
+            telemetryTimers[timerKey] = setInterval(() => {
+                sendTelemetryData(nodeId, sensorType);
+            }, freq * 1000);
+        }
+    }
+
+    function startActiveTelemetries() {
+        const nodesWithSensors = state.peripherals.filter(p => p.sensor_type);
+        nodesWithSensors.forEach(n => {
+            const timerKey = `${n.node_id}_${n.sensor_type}`;
+            const tState = state.telemetryStates[timerKey];
+            if (tState && tState.isRunning) {
+                const freq = 5;
+                telemetryFrequencies[timerKey] = freq;
+
+                if (telemetryTimers[timerKey]) {
+                    clearInterval(telemetryTimers[timerKey]);
+                }
+
+                telemetryTimers[timerKey] = setInterval(() => {
+                    sendTelemetryData(n.node_id, n.sensor_type);
+                }, freq * 1000);
+
+                logTelemetry(`Wznowiono automatyczne wysyłanie telemetrii dla ${n.node_id} [${n.sensor_type}] co ${freq}s.`);
+            }
+        });
+
+        // Ponowne renderowanie kontrolek, aby przyciski miały poprawny napis i kolor na starcie
+        renderTelemetryControls();
+    }
+
+    async function sendTelemetryData(nodeId, sensorType) {
+        const timerKey = `${nodeId}_${sensorType}`;
+        const slider = document.getElementById(`val-slider-${timerKey}`);
+        const mode = document.getElementById(`mode-${timerKey}`).value;
+
+        let val = parseFloat(slider.value);
+
+        if (mode === "random") {
+            // Dodaj mały losowy szum
+            let noise = (Math.random() - 0.5) * (sensorType === "temperature" ? 0.4 : 2);
+            val = val + noise;
+            
+            // Clamp do min/max
+            const min = parseFloat(slider.min);
+            const max = parseFloat(slider.max);
+            val = Math.max(min, Math.min(max, val));
+
+            slider.value = val;
+            let unit = sensorType === "temperature" ? "°C" : (sensorType === "humidity" ? "%" : "lux");
+            updateValLabel(timerKey, val, unit);
+        } else if (mode === "sine") {
+            // Symulacja sinusoidy (np. dobowy cykl temperatury)
+            sineTime[timerKey] += 0.2; // krok czasu
+            const baseVal = (parseFloat(slider.min) + parseFloat(slider.max)) / 2;
+            const amplitude = (parseFloat(slider.max) - parseFloat(slider.min)) / 4;
+            val = baseVal + amplitude * Math.sin(sineTime[timerKey]);
+
+            slider.value = val;
+            let unit = sensorType === "temperature" ? "°C" : (sensorType === "humidity" ? "%" : "lux");
+            updateValLabel(timerKey, val, unit);
+        }
+
+        const valToSend = parseFloat(val.toFixed(2));
+        logTelemetry(`Wysyłanie: ${nodeId} [${sensorType}] = ${valToSend}`);
+
+        // POST /api/nodes/telemetry/
+        // Payload: { node_id, value }
+        const res = await apiRequest("POST", "/api/nodes/telemetry/", {
+            node_id: nodeId,
+            value: valToSend
+        });
+
+        if (res.ok) {
+            logTelemetry(`[OK] Odczyt zapisany pomyślnie. ID: ${res.data.id}`);
+            document.getElementById("telemetry-sync-lbl").textContent = "✓ Wysłano pomyślnie";
+            document.getElementById("telemetry-sync-lbl").style.color = "var(--green-600)";
+        } else {
+            logApi.err(`Błąd wysyłania telemetrii: ${JSON.stringify(res.data)}`);
+            document.getElementById("telemetry-sync-lbl").textContent = "✗ Błąd wysyłania";
+            document.getElementById("telemetry-sync-lbl").style.color = "var(--red-500)";
+        }
+    }
+
+    // ── HEARTBEAT AND COMMAND HANDLING ──
+    function startHeartbeat() {
+        if (heartbeatIntervalId) return;
+
+        const btn = document.getElementById("btn-hb-toggle");
+        const pulse = document.getElementById("hb-pulse");
+        const label = document.getElementById("hb-status-lbl");
+
+        const interval = parseInt(document.getElementById("hb-interval").value) || 5;
+        if (interval < 2) {
+            alert("Częstotliwość musi wynosić min. 2 sekundy!");
+            return;
+        }
+
+        state.heartbeatEnabled = true;
+        state.heartbeatInterval = interval;
+        saveState();
+
+        if (btn) {
+            btn.textContent = "Zatrzymaj Heartbeat";
+            btn.style.background = "var(--red-500)";
+        }
+        if (pulse) pulse.className = "pulse-indicator pulse-active";
+        if (label) label.textContent = `Odpytywanie co ${interval}s`;
+        logSystem(`Uruchomiono Heartbeat co ${interval} sekund.`);
+
+        // Pierwsza wysyłka natychmiast
+        triggerHeartbeatCall();
+
+        heartbeatIntervalId = setInterval(() => {
+            triggerHeartbeatCall();
+        }, interval * 1000);
+    }
+
+    function stopHeartbeat() {
+        if (!heartbeatIntervalId) return;
+
+        const btn = document.getElementById("btn-hb-toggle");
+        const pulse = document.getElementById("hb-pulse");
+        const label = document.getElementById("hb-status-lbl");
+
+        clearInterval(heartbeatIntervalId);
+        heartbeatIntervalId = null;
+
+        state.heartbeatEnabled = false;
+        saveState();
+
+        if (btn) {
+            btn.textContent = "Uruchom Heartbeat";
+            btn.style.background = "#22c55e"; // vibrant green
+        }
+        if (pulse) pulse.className = "pulse-indicator";
+        if (label) label.textContent = "Nieaktywny";
+        logSystem("Zatrzymano odpytywanie Heartbeat.");
+    }
+
+    function toggleHeartbeat() {
+        if (heartbeatIntervalId) {
+            stopHeartbeat();
+        } else {
+            startHeartbeat();
+        }
+    }
+
+    async function triggerHeartbeatCall() {
+        logSystem("Heartbeat: wysyłanie zapytania do /api/nodes/heartbeat/...");
+
+        const res = await apiRequest("POST", "/api/nodes/heartbeat/");
+
+        if (res.ok) {
+            const count = res.data.pending_count;
+            logSystem.ok(`Heartbeat odebrany. Komend w kolejce: ${count}`);
+
+            if (count > 0 && res.data.commands) {
+                res.data.commands.forEach(cmd => {
+                    const params = cmd.time ? ` na czas ${cmd.time} min` : "";
+                    logCommand(`[KOMENDA] Otrzymano: węzeł ${cmd.node_id} (GPIO ${cmd.gpio}) -> ${cmd.command}${params}`);
+                    
+                    // Zmień fizyczny stan stacji
+                    executeCommandOnSimulator(cmd);
+
+                    // Zasymuluj fizyczne wykonanie komendy w logach stacji
+                    setTimeout(() => {
+                        logCommand(`[STACJA FIZYCZNA] Pico na pinie GPIO ${cmd.gpio} wykonuje: ${cmd.command}${params} [OK]`);
+                    }, 500);
+                });
+            }
+        } else {
+            logApi.err(`Heartbeat odrzucony przez serwer: ${JSON.stringify(res.data)}`);
+        }
+    }
+
+    // ── INTERAKTYWNA SYMULACJA STANU WYKONAWCZEGO ──
+    const peripheralStates = {}; // key: node_id_gpio -> { state: 'OFF'|'ON', timer: null, timeRemaining: 0 }
+
+    function renderDeviceStates() {
+        const container = document.getElementById("device-states-list");
+        if (!container) return;
+        container.innerHTML = "";
+
+        const controllablePeripherals = state.peripherals.filter(p => p.peripheral_type);
+
+        if (controllablePeripherals.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding: 0.5rem; color: var(--gray-500); font-size: 0.8rem;">
+                Brak elementów sterowanych w konfiguracji.
+            </div>`;
+            return;
+        }
+
+        controllablePeripherals.forEach(p => {
+            const key = `${p.node_id}_${p.gpio}`;
+            const row = document.createElement("div");
+            row.style.display = "flex";
+            row.style.alignItems = "center";
+            row.style.justifyContent = "space-between";
+            row.style.background = "var(--gray-50)";
+            row.style.border = "1px solid var(--gray-200)";
+            row.style.borderRadius = "var(--radius)";
+            row.style.padding = "0.5rem 0.75rem";
+
+            // Odzyskaj stan lub nadaj domyślny
+            const isLamp = p.peripheral_type === "LAMP";
+            const curState = peripheralStates[key] ? peripheralStates[key].state : "OFF";
+            const activeColor = isLamp ? "var(--green-500)" : "#2563eb";
+            const activeTextColor = isLamp ? "var(--green-600)" : "#1d4ed8";
+
+            const ledColor = curState === "ON" ? activeColor : "var(--gray-300)";
+            const ledShadow = curState === "ON" ? `0 0 8px ${activeColor}` : "none";
+            
+            const timeRemaining = peripheralStates[key] ? peripheralStates[key].timeRemaining : 0;
+            const textVal = curState === "ON" 
+                ? (timeRemaining > 0 ? `WŁĄCZONY (Pozostało: ${formatDuration(timeRemaining)})` : "WŁĄCZONY") 
+                : "WYŁĄCZONY";
+            const textColor = curState === "ON" ? activeTextColor : "var(--gray-500)";
+
+            row.innerHTML = `
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div id="state-led-${key}" style="width: 10px; height: 10px; border-radius: 50%; background-color: ${ledColor}; box-shadow: ${ledShadow}; transition: all 0.3s;"></div>
+                    <span style="font-weight:600; font-size:0.85rem; color:var(--gray-700);">${p.node_id} (Pin ${p.gpio}) &middot; ${p.peripheral_type}</span>
+                </div>
+                <span id="state-val-${key}" style="font-size:0.8rem; font-weight:700; color:${textColor};">${textVal}</span>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    async function restoreActiveStatesFromHistory() {
+        if (!state.accessToken || !state.deviceId) return;
+        logSystem("Przywracanie stanu aktywnych urządzeń z historii komend...");
+        const res = await apiRequest("GET", `/api/nodes/command/?device_id=${state.deviceId}&limit=20`);
+        if (res.ok) {
+            const commands = res.data;
+            const latestDelivered = {};
+            // commands są posortowane od najnowszych (descending),
+            // więc przechodzimy pętlą od najstarszych do najnowszych
+            for (let i = commands.length - 1; i >= 0; i--) {
+                const cmd = commands[i];
+                if (cmd.status === "delivered") {
+                    const key = `${cmd.node_id}_${cmd.gpio}`;
+                    latestDelivered[key] = cmd;
+                }
+            }
+
+            for (let key in latestDelivered) {
+                executeCommandOnSimulator(latestDelivered[key]);
+            }
+            logSystem.ok("Stan urządzeń i timery czasowe przywrócone pomyślnie.");
+        } else {
+            logApi.err("Nie udało się pobrać historii komend do przywrócenia stanu.");
+        }
+    }
+
+    function executeCommandOnSimulator(cmd) {
+        const key = `${cmd.node_id}_${cmd.gpio}`;
+        const led = document.getElementById(`state-led-${key}`);
+        const text = document.getElementById(`state-val-${key}`);
+        if (!led || !text) return;
+
+        // Anuluj poprzedni timer
+        if (peripheralStates[key] && peripheralStates[key].timer) {
+            clearInterval(peripheralStates[key].timer);
+            peripheralStates[key].timer = null;
+        }
+
+        if (cmd.command === "TURN_ON" || cmd.command === "TURN_ON_FOR" || cmd.command === "WATER_PUMP_ON") {
+            const isLamp = cmd.peripheral_type === "LAMP" || cmd.command.startsWith("TURN_");
+            const activeColor = isLamp ? "var(--green-500)" : "#2563eb";
+            const activeTextColor = isLamp ? "var(--green-600)" : "#1d4ed8";
+
+            led.style.backgroundColor = activeColor;
+            led.style.boxShadow = `0 0 8px ${activeColor}`;
+            
+            if (cmd.command === "TURN_ON") {
+                text.textContent = "WŁĄCZONY";
+                text.style.color = "var(--green-600)";
+                peripheralStates[key] = { state: "ON", timer: null, timeRemaining: 0 };
+            } else {
+                let deliveredTime = cmd.delivered_at ? new Date(cmd.delivered_at).getTime() : getSyncedNow();
+                let endTime = deliveredTime + cmd.time * 60 * 1000;
+                let secondsRemaining = Math.floor((endTime - getSyncedNow()) / 1000);
+
+                if (secondsRemaining <= 0) {
+                    led.style.backgroundColor = "var(--gray-300)";
+                    led.style.boxShadow = "none";
+                    text.textContent = "WYŁĄCZONY";
+                    text.style.color = "var(--gray-500)";
+                    peripheralStates[key] = { state: "OFF", timer: null, timeRemaining: 0 };
+                    return;
+                }
+
+                text.textContent = `WŁĄCZONY (Pozostało: ${formatDuration(secondsRemaining)})`;
+                text.style.color = activeTextColor;
+                
+                const interval = setInterval(() => {
+                    secondsRemaining--;
+                    if (secondsRemaining <= 0) {
+                        clearInterval(interval);
+                        peripheralStates[key].timer = null;
+                        
+                        led.style.backgroundColor = "var(--gray-300)";
+                        led.style.boxShadow = "none";
+                        text.textContent = "WYŁĄCZONY";
+                        text.style.color = "var(--gray-500)";
+                        logCommand(`[STACJA FIZYCZNA] Pico ${cmd.node_id} (pin ${cmd.gpio}) zakończył wykonywanie komendy czasowej.`);
+                    } else {
+                        text.textContent = `WŁĄCZONY (Pozostało: ${formatDuration(secondsRemaining)})`;
+                    }
+                }, 1000);
+                
+                peripheralStates[key] = { state: "ON", timer: interval, timeRemaining: secondsRemaining };
+            }
+        } else if (cmd.command === "TURN_OFF") {
+            led.style.backgroundColor = "var(--gray-300)";
+            led.style.boxShadow = "none";
+            text.textContent = "WYŁĄCZONY";
+            text.style.color = "var(--gray-500)";
+            peripheralStates[key] = { state: "OFF", timer: null, timeRemaining: 0 };
+        }
+    }
+
+    function formatDuration(totalSeconds) {
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+</script>
+{% endblock %}
