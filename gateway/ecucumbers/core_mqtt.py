@@ -115,6 +115,18 @@ class Device:
         if not self.has_format:
             self.get_format()
 
+        if self.sensor_last_value is not None:
+            try:
+                from ecucumbers.api_client import send_telemetry
+                import threading
+                threading.Thread(
+                    target=send_telemetry,
+                    args=(self.name, float(self.sensor_last_value)),
+                    daemon=True
+                ).start()
+            except Exception as e:
+                self._add_log(f"Błąd przekazywania telemetrii: {e}")
+
     def handle_reply(self, command, result, pin_arg=None):
         """Aktualizuje stan na podstawie odpowiedzi (temat: .../reply)"""
         if command == "get_pins":
