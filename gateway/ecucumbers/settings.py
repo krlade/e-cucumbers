@@ -1,10 +1,13 @@
 from pathlib import Path
 from datetime import timedelta
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-ecucumbers-dev-key-change-in-production"
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-ecucumbers-dev-key-change-in-production")
 
 DEBUG = True
 
@@ -122,3 +125,21 @@ CORS_ALLOW_ALL_ORIGINS = True  # Dev only — restrict in production
 # --- Security & Handlers ---
 
 CSRF_FAILURE_VIEW = "accounts.views.custom_csrf_failure"
+
+# ---------------------------------------------------------------------------
+# API Client — połączenie Gateway ↔ API
+# ---------------------------------------------------------------------------
+
+# URL bazowy serwisu API (bez trailing slash)
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:3002")
+
+# Unikalny identyfikator tego gateway'a (widoczny w API jako device_id)
+API_DEVICE_ID = os.getenv("API_DEVICE_ID", "gateway-01")
+
+# Interwał heartbeat w sekundach
+API_HEARTBEAT_INTERVAL = int(os.getenv("API_HEARTBEAT_INTERVAL", "30"))
+
+MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt.krlade.dev")
+MQTT_PORT = int(os.getenv("MQTT_PORT", 443))
+MQTT_USER = os.getenv("MQTT_USER", "user")
+MQTT_PASS = os.getenv("MQTT_PASS", "ogorek123!")

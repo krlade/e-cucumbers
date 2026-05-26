@@ -292,6 +292,7 @@
             <li><a href="{% url 'manage_users' %}" style="color: #6ee7b7;">Zarządzanie Użytkownikami</a></li>
             {% endif %}
             <li><a href="{% url 'dashboard' %}">Dashboard</a></li>
+            <li><a href="{% url 'pairing_status' %}">🔗 Parowanie API</a></li>
             <li>
                 <form method="post" action="{% url 'logout' %}" style="display:inline">
                     {% csrf_token %}
@@ -316,6 +317,7 @@
 
         {% block content %}{% endblock %}
     </main>
+    {% block extra_js %}{% endblock %}
 </body>
 
 </html>
