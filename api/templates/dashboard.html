@@ -27,6 +27,27 @@
         padding: 1.5rem;
         margin-bottom: 2rem;
         box-shadow: var(--shadow);
+        transition: margin-bottom 0.2s ease-in-out, padding-bottom 0.2s ease-in-out;
+    }
+
+    .device-box.collapsed {
+        margin-bottom: 1rem;
+    }
+
+    .device-box.collapsed .device-header {
+        border-bottom-color: transparent;
+        margin-bottom: -1.5rem;
+        padding-bottom: 1.5rem;
+        border-bottom-left-radius: var(--radius);
+        border-bottom-right-radius: var(--radius);
+    }
+
+    .device-box.collapsed .device-grid {
+        display: none;
+    }
+
+    .device-box.collapsed .device-footer {
+        display: none;
     }
 
     .device-header {
@@ -36,6 +57,58 @@
         border-bottom: 2px solid var(--green-50);
         padding-bottom: 0.75rem;
         margin-bottom: 1.25rem;
+        cursor: pointer;
+        user-select: none;
+        /* Padding and margin for full bleed header hover background */
+        margin-top: -1.5rem;
+        margin-left: -1.5rem;
+        margin-right: -1.5rem;
+        padding-top: 1.5rem;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+        border-top-left-radius: var(--radius);
+        border-top-right-radius: var(--radius);
+        transition: background-color 0.2s ease, border-bottom-color 0.2s ease, margin-bottom 0.2s ease, padding-bottom 0.2s ease;
+    }
+
+    .device-header:hover {
+        background-color: var(--gray-50);
+    }
+
+    .collapse-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s ease;
+    }
+
+    .device-box.collapsed .collapse-icon svg {
+        transform: rotate(-90deg);
+    }
+
+    .device-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--gray-200);
+    }
+
+    .device-summary-container {
+        display: none;
+        font-size: 0.85rem;
+        color: var(--gray-600);
+        background: var(--gray-100);
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        font-weight: 600;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .device-box.collapsed .device-summary-container {
+        display: flex;
     }
 
     .device-title {
@@ -430,21 +503,21 @@
 
 {% if devices %}
     {% for d in devices %}
-    <div class="device-box">
-        <div class="device-header">
+    <div class="device-box" id="device-box-{{ d.unit.device_id }}">
+        <div class="device-header" onclick="toggleDeviceCollapse(event, '{{ d.unit.device_id }}')">
             <div class="device-title">
+                <span class="collapse-icon">
+                    <svg style="width: 20px; height: 20px; fill: var(--green-800); display: block;" viewBox="0 0 24 24">
+                        <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z" />
+                    </svg>
+                </span>
                 <h2>STACJA: {{ d.unit.device_id }}</h2>
                 <span class="status-badge" style="{% if d.role == 'admin' %}background: var(--green-100); color: var(--green-800);{% else %}background: var(--gray-100); color: var(--gray-600);{% endif %}">
                     Rola: {{ d.role }}
                 </span>
             </div>
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <button class="btn btn-sm btn-off" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; margin: 0; background: var(--red-500); width: auto;" onclick="unregisterDevice('{{ d.unit.device_id }}')">
-                    Wyrejestruj stację
-                </button>
-                <div style="font-size: 0.8rem; color: var(--gray-500);">
-                    Zarejestrowano: {{ d.unit.registered_at|date:"d.m.Y H:i" }}
-                </div>
+            <div class="device-summary-container" id="summary-{{ d.unit.device_id }}">
+                <span style="color: var(--gray-400);">Ładowanie danych...</span>
             </div>
         </div>
 
@@ -575,6 +648,15 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="device-footer">
+            <div style="font-size: 0.8rem; color: var(--gray-500);">
+                Zarejestrowano: {{ d.unit.registered_at|date:"d.m.Y H:i" }}
+            </div>
+            <button class="btn btn-sm btn-off" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; margin: 0; background: var(--red-500); width: auto;" onclick="unregisterDevice('{{ d.unit.device_id }}')">
+                Wyrejestruj stację
+            </button>
         </div>
     </div>
     {% endfor %}
@@ -717,6 +799,7 @@
 
     const charts = {}; // chartId -> Chart instance
     const chartRanges = {}; // deviceId_nodeId_sensorType -> '5m' | '15m' | '30m' | 'all'
+    const latestTelemetry = {}; // deviceId_nodeId_sensorType -> { nodeId, sensorType, value, unit }
 
     // Inicjalizacja Chart.js dla każdego sensora
     document.addEventListener("DOMContentLoaded", () => {
@@ -797,6 +880,17 @@
         // Pierwsze wczytanie logów komend dla każdego urządzenia
         deviceIds.forEach(devId => {
             updateCommandLog(devId);
+        });
+
+        // Restore collapse states from localStorage
+        deviceIds.forEach(devId => {
+            const isCollapsed = localStorage.getItem(`device-collapsed-${devId}`);
+            if (isCollapsed === 'true') {
+                const box = document.getElementById(`device-box-${devId}`);
+                if (box) {
+                    box.classList.add('collapsed');
+                }
+            }
         });
 
         // Uruchomienie cyklu pollingu (co 4 sekundy)
@@ -993,11 +1087,62 @@
                     chart.data.datasets[0].data = values;
                     chart.update();
                 }
+
+                // Zapisz najnowsze dane i odśwież zwięzłe podsumowanie w nagłówku stacji
+                let val = isTelemetryOffline ? 0.0 : lastReading.value;
+                let unit = conf.sensorType === 'temperature' ? '°C' : (conf.sensorType === 'humidity' ? '%' : 'lux');
+                latestTelemetry[`${conf.deviceId}_${conf.nodeId}_${conf.sensorType}`] = {
+                    nodeId: conf.nodeId,
+                    sensorType: conf.sensorType,
+                    value: val,
+                    unit: unit
+                };
+                updateDeviceSummary(conf.deviceId);
             } else {
                 if (numEl) numEl.textContent = "0.0";
+                latestTelemetry[`${conf.deviceId}_${conf.nodeId}_${conf.sensorType}`] = {
+                    nodeId: conf.nodeId,
+                    sensorType: conf.sensorType,
+                    value: 0.0,
+                    unit: conf.sensorType === 'temperature' ? '°C' : (conf.sensorType === 'humidity' ? '%' : 'lux')
+                };
+                updateDeviceSummary(conf.deviceId);
             }
         } catch (e) {
             console.error("Błąd ładowania telemetrii", e);
+        }
+    }
+
+    function updateDeviceSummary(deviceId) {
+        const summaryEl = document.getElementById(`summary-${deviceId}`);
+        if (!summaryEl) return;
+
+        // Grupuj dane telemetryczne po nodeId
+        const nodeData = {};
+        for (const key in latestTelemetry) {
+            if (key.startsWith(`${deviceId}_`)) {
+                const data = latestTelemetry[key];
+                if (!nodeData[data.nodeId]) {
+                    nodeData[data.nodeId] = [];
+                }
+                
+                let color = "#10b981"; // temp
+                if (data.sensorType === "humidity") color = "#3b82f6";
+                else if (data.sensorType === "light") color = "#d97706"; // amber
+
+                nodeData[data.nodeId].push(`<span style="color: ${color}; font-weight: 700;">${data.value.toFixed(1)}${data.unit}</span>`);
+            }
+        }
+
+        const parts = [];
+        for (const nodeId in nodeData) {
+            parts.push(`<span style="color: var(--gray-800); font-weight: 600;">${nodeId}</span> (${nodeData[nodeId].join(', ')})`);
+        }
+
+        if (parts.length > 0) {
+            summaryEl.innerHTML = parts.join(' &middot; ');
+        } else {
+            summaryEl.innerHTML = '<span style="color: var(--gray-400);">Brak danych</span>';
         }
     }
 
@@ -1287,6 +1432,17 @@
             }
         } catch (e) {
             alert("Błąd połączenia z serwerem: " + e.message);
+        }
+    }
+
+    function toggleDeviceCollapse(event, deviceId) {
+        if (event.target.closest('button') || event.target.closest('a') || event.target.closest('input')) {
+            return;
+        }
+        const box = document.getElementById(`device-box-${deviceId}`);
+        if (box) {
+            const isCollapsed = box.classList.toggle('collapsed');
+            localStorage.setItem(`device-collapsed-${deviceId}`, isCollapsed ? 'true' : 'false');
         }
     }
 </script>
