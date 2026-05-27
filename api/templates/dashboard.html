@@ -1016,7 +1016,7 @@
 
         try {
             // Pobieramy ostatnie 150 wpisów, by starczyło do filtracji czasowej
-            const resp = await fetch(`/api/nodes/telemetry/?device_id=${conf.deviceId}&sensor_type=${conf.sensorType}&limit=150`);
+            const resp = await fetch(`/api/nodes/telemetry/?device_id=${conf.deviceId}&node_id=${conf.nodeId}&sensor_type=${conf.sensorType}&limit=150`);
             if (!resp.ok) return;
 
             const allReadings = await resp.json();

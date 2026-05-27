@@ -337,6 +337,7 @@ class TelemetryView(APIView):
             return Response({"detail": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
         sensor_type = request.query_params.get("sensor_type")
+        node_id = request.query_params.get("node_id")
         limit = request.query_params.get("limit", 50)
         try:
             limit = int(limit)
@@ -346,6 +347,8 @@ class TelemetryView(APIView):
         readings = TelemetryReading.objects.filter(gateway=gateway)
         if sensor_type:
             readings = readings.filter(sensor_type=sensor_type)
+        if node_id:
+            readings = readings.filter(node_id=node_id)
 
         readings = readings.order_by("-recorded_at")[:limit]
         # Return in ascending order of recorded_at for easier charting
