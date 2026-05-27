@@ -208,7 +208,7 @@ Serwer odrzuca z błędem `400`, jeśli:
 }
 ```
 
-**`QueuedCommandSerializer`** (komenda):
+**`QueuedCommandSerializer`** (komenda w historii):
 ```json
 {
   "id": 42,
@@ -220,6 +220,16 @@ Serwer odrzuca z błędem `400`, jeśli:
   "status": "delivered",
   "created_at": "2026-05-25T10:00:00Z",
   "delivered_at": "2026-05-25T10:01:00Z"
+}
+```
+
+**`GatewayCommand`** (uproszczony format komendy w heartbeat):
+```json
+{
+  "id": 42,
+  "node_id": "Pico_01",
+  "gpio": 1,
+  "command": "TURN_ON"
 }
 ```
 
@@ -377,7 +387,7 @@ Content-Type: application/json
 - Operacja jest **idempotentna** (upsert) — bezpieczne wielokrotne wywołanie
 - Każdy `node_id` musi być unikalny w obrębie jednego gateway'a
 - Węzeł musi mieć co najmniej `sensor_type` **lub** parę `gpio` + `peripheral_type`
-- `gpio` i `peripheral_type` muszą być podane **razem** albo oba pominięte/null
+- `gpio` and `peripheral_type` muszą być podane **razem** albo oba pominięte/null
 - Dozwolone wartości `peripheral_type`: `LAMP`, `SPRINKLER`
 - Dozwolone wartości `sensor_type`: `temperature`, `humidity`, `light`
 
@@ -411,23 +421,13 @@ Odpowiedź `200 OK`:
       "id": 42,
       "node_id": "Pico_01",
       "gpio": 1,
-      "peripheral_type": "LAMP",
-      "command": "TURN_ON_FOR",
-      "time": 480,
-      "status": "delivered",
-      "created_at": "2026-05-25T10:00:00Z",
-      "delivered_at": "2026-05-25T10:01:00Z"
+      "command": "TURN_ON"
     },
     {
       "id": 43,
       "node_id": "Pico_02",
       "gpio": 2,
-      "peripheral_type": "SPRINKLER",
-      "command": "WATER_PUMP_ON",
-      "time": 15,
-      "status": "delivered",
-      "created_at": "2026-05-25T10:01:30Z",
-      "delivered_at": "2026-05-25T10:01:31Z"
+      "command": "TURN_OFF"
     }
   ]
 }
@@ -435,13 +435,12 @@ Odpowiedź `200 OK`:
 
 **Przetwarzanie komend przez gateway:**
 - Jeśli `pending_count > 0`, gateway iteruje po tablicy `commands`
-- Dla każdej komendy: identyfikuje węzeł Pico po `node_id` i `gpio`, a następnie wykonuje komendę
-- Implementacja komend:
-  - `TURN_ON` — włącza wyjście GPIO bezterminowo
-  - `TURN_OFF` — wyłącza wyjście GPIO
-  - `TURN_ON_FOR` — włącza wyjście GPIO na `time` minut, po upływie wyłącza
-  - `WATER_PUMP_ON` — włącza pompę na `time` minut, po upływie wyłącza
-- Po dostarczeniu heartbeatu serwer **automatycznie** zmienia status komend z `pending` na `delivered` — gateway nie musi tego potwierdzać osobno
+- Dla każdej komendy: identyfikuje węzeł Pico po `node_id` i `gpio`, a następnie wykonuje komendę.
+- Implementacja komend na poziomie fizycznego pinu (maksymalnie uproszczona):
+  - `TURN_ON` — ustawia stan pinu GPIO na wysoki (ON / włączony)
+  - `TURN_OFF` — ustawia stan pinu GPIO na niski (OFF / wyłączony)
+- **Zarządzanie czasem trwania (Timery):** Bramka nie implementuje żadnych timerów ani odliczania czasu w dół. Jeśli komenda została uruchomiona na określony czas (np. zraszacz na 15 minut), to aplikacja webowa (serwer) automatycznie odlicza ten czas i po jego upływie kolejkuje dla bramki nową komendę `TURN_OFF`. Bramka po prostu odbiera ją w kolejnym heartbeacie i fizycznie wyłącza pin.
+- Po dostarczeniu heartbeatu serwer **automatycznie** zmienia status komend z `pending` na `delivered` — gateway nie musi tego potwierdzać osobno.
 
 ### 6.5 Wysyłanie telemetrii
 

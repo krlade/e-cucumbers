@@ -250,15 +250,22 @@ class HeartbeatView(APIView):
         # Atomiocznie oznacz jako dostarczone
         now = timezone.now()
         pending.update(status=QueuedCommand.STATUS_DELIVERED, delivered_at=now)
+        # Map and simplify commands for the gateway (no timers, no peripheral type)
+        gateway_commands = []
         for cmd in commands:
-            cmd.status = QueuedCommand.STATUS_DELIVERED
-            cmd.delivered_at = now
+            simple_cmd = "TURN_ON" if cmd.command in ["TURN_ON", "TURN_ON_FOR", "WATER_PUMP_ON"] else "TURN_OFF"
+            gateway_commands.append({
+                "id": cmd.id,
+                "node_id": cmd.peripheral.node_id,
+                "gpio": cmd.peripheral.gpio,
+                "command": simple_cmd,
+            })
 
         return Response(
             {
                 "device_id": gateway.device_id,
-                "pending_count": len(commands),
-                "commands": QueuedCommandSerializer(commands, many=True).data,
+                "pending_count": len(gateway_commands),
+                "commands": gateway_commands,
             },
             status=status.HTTP_200_OK,
         )

@@ -1260,7 +1260,9 @@
         }
 
         if (cmd.command === "TURN_ON" || cmd.command === "TURN_ON_FOR" || cmd.command === "WATER_PUMP_ON") {
-            const isLamp = cmd.peripheral_type === "LAMP" || cmd.command.startsWith("TURN_");
+            const localPeripheral = state.peripherals.find(p => p.node_id === cmd.node_id && p.gpio === cmd.gpio);
+            const peripheralType = localPeripheral ? localPeripheral.peripheral_type : (cmd.peripheral_type || "LAMP");
+            const isLamp = peripheralType === "LAMP";
             const activeColor = isLamp ? "var(--green-500)" : "#2563eb";
             const activeTextColor = isLamp ? "var(--green-600)" : "#1d4ed8";
 
@@ -1269,7 +1271,7 @@
             
             if (cmd.command === "TURN_ON") {
                 text.textContent = "WŁĄCZONY";
-                text.style.color = "var(--green-600)";
+                text.style.color = activeTextColor;
                 peripheralStates[key] = { state: "ON", timer: null, timeRemaining: 0 };
             } else {
                 let deliveredTime = cmd.delivered_at ? new Date(cmd.delivered_at).getTime() : getSyncedNow();
