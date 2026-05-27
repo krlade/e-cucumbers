@@ -1168,7 +1168,7 @@
     }
 
     // ── INTERAKTYWNA SYMULACJA STANU WYKONAWCZEGO ──
-    const peripheralStates = {}; // key: node_id_gpio -> { state: 'OFF'|'ON', timer: null, timeRemaining: 0 }
+    const peripheralStates = {}; // key: node_id_gpio -> { state: 'OFF'|'ON' }
 
     function renderDeviceStates() {
         const container = document.getElementById("device-states-list");
@@ -1204,10 +1204,7 @@
             const ledColor = curState === "ON" ? activeColor : "var(--gray-300)";
             const ledShadow = curState === "ON" ? `0 0 8px ${activeColor}` : "none";
             
-            const timeRemaining = peripheralStates[key] ? peripheralStates[key].timeRemaining : 0;
-            const textVal = curState === "ON" 
-                ? (timeRemaining > 0 ? `WŁĄCZONY (Pozostało: ${formatDuration(timeRemaining)})` : "WŁĄCZONY") 
-                : "WYŁĄCZONY";
+            const textVal = curState === "ON" ? "WŁĄCZONY" : "WYŁĄCZONY";
             const textColor = curState === "ON" ? activeTextColor : "var(--gray-500)";
 
             row.innerHTML = `
@@ -1241,7 +1238,7 @@
             for (let key in latestDelivered) {
                 executeCommandOnSimulator(latestDelivered[key]);
             }
-            logSystem.ok("Stan urządzeń i timery czasowe przywrócone pomyślnie.");
+            logSystem.ok("Stan urządzeń przywrócony pomyślnie.");
         } else {
             logApi.err("Nie udało się pobrać historii komend do przywrócenia stanu.");
         }
@@ -1253,12 +1250,6 @@
         const text = document.getElementById(`state-val-${key}`);
         if (!led || !text) return;
 
-        // Anuluj poprzedni timer
-        if (peripheralStates[key] && peripheralStates[key].timer) {
-            clearInterval(peripheralStates[key].timer);
-            peripheralStates[key].timer = null;
-        }
-
         if (cmd.command === "TURN_ON" || cmd.command === "TURN_ON_FOR" || cmd.command === "WATER_PUMP_ON") {
             const localPeripheral = state.peripherals.find(p => p.node_id === cmd.node_id && p.gpio === cmd.gpio);
             const peripheralType = localPeripheral ? localPeripheral.peripheral_type : (cmd.peripheral_type || "LAMP");
@@ -1269,51 +1260,15 @@
             led.style.backgroundColor = activeColor;
             led.style.boxShadow = `0 0 8px ${activeColor}`;
             
-            if (cmd.command === "TURN_ON") {
-                text.textContent = "WŁĄCZONY";
-                text.style.color = activeTextColor;
-                peripheralStates[key] = { state: "ON", timer: null, timeRemaining: 0 };
-            } else {
-                let deliveredTime = cmd.delivered_at ? new Date(cmd.delivered_at).getTime() : getSyncedNow();
-                let endTime = deliveredTime + cmd.time * 60 * 1000;
-                let secondsRemaining = Math.floor((endTime - getSyncedNow()) / 1000);
-
-                if (secondsRemaining <= 0) {
-                    led.style.backgroundColor = "var(--gray-300)";
-                    led.style.boxShadow = "none";
-                    text.textContent = "WYŁĄCZONY";
-                    text.style.color = "var(--gray-500)";
-                    peripheralStates[key] = { state: "OFF", timer: null, timeRemaining: 0 };
-                    return;
-                }
-
-                text.textContent = `WŁĄCZONY (Pozostało: ${formatDuration(secondsRemaining)})`;
-                text.style.color = activeTextColor;
-                
-                const interval = setInterval(() => {
-                    secondsRemaining--;
-                    if (secondsRemaining <= 0) {
-                        clearInterval(interval);
-                        peripheralStates[key].timer = null;
-                        
-                        led.style.backgroundColor = "var(--gray-300)";
-                        led.style.boxShadow = "none";
-                        text.textContent = "WYŁĄCZONY";
-                        text.style.color = "var(--gray-500)";
-                        logCommand(`[STACJA FIZYCZNA] Pico ${cmd.node_id} (pin ${cmd.gpio}) zakończył wykonywanie komendy czasowej.`);
-                    } else {
-                        text.textContent = `WŁĄCZONY (Pozostało: ${formatDuration(secondsRemaining)})`;
-                    }
-                }, 1000);
-                
-                peripheralStates[key] = { state: "ON", timer: interval, timeRemaining: secondsRemaining };
-            }
+            text.textContent = "WŁĄCZONY";
+            text.style.color = activeTextColor;
+            peripheralStates[key] = { state: "ON" };
         } else if (cmd.command === "TURN_OFF") {
             led.style.backgroundColor = "var(--gray-300)";
             led.style.boxShadow = "none";
             text.textContent = "WYŁĄCZONY";
             text.style.color = "var(--gray-500)";
-            peripheralStates[key] = { state: "OFF", timer: null, timeRemaining: 0 };
+            peripheralStates[key] = { state: "OFF" };
         }
     }
 
