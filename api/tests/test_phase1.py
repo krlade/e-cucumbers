@@ -155,4 +155,4 @@ print(f"  Status: {s}")
 assert s == 400
 print("  [PASS]")
 
-print("\n✅ All 13 tests passed!")
+print("\n[SUCCESS] All 13 tests passed!")
