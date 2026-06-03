@@ -1,5 +1,8 @@
 """
-Phase 2 verification: telemetry isolation and node_id filtering.
+Telemetry endpoint verification: raw payload passthrough, node_id filtering.
+
+New format: gateway sends raw payload {"node_id": "Pico_01", "payload": {"data": 25.4}}
+sensor_type is optional - resolved from ControllableNode if configured.
 
 Usage:
     1. python manage.py flush --no-input
@@ -54,56 +57,72 @@ assert s == 200, f"Register device failed: {b}"
 device_access = b["access"]
 print("  [OK]\n")
 
-# ── 1. Rejestracja peryferiów z tym samym czujnikiem ──
-print("=== 1. Register peripherals (Pico_01 & Pico_02 with temperature) ===")
-payload = {
-    "device_id": device_id,
-    "peripherals": [
-        {"node_id": "Pico_01", "sensor_type": "temperature"},
-        {"node_id": "Pico_02", "sensor_type": "temperature"},
-    ],
-}
-s, b = req("POST", "/api/nodes/register-peripherals/", payload, token=device_access)
-assert s == 200, f"Register peripherals failed: {b}"
-assert b["registered_count"] == 2
-print("  [PASS]")
-
-# ── 2. Wysyłanie różnych wartości telemetrii ──
-print("\n=== 2. Send telemetry for Pico_01 and Pico_02 ===")
-s, b1 = req("POST", "/api/nodes/telemetry/", {"node_id": "Pico_01", "value": 25.4}, token=device_access)
+# ── 1. Wysyłanie surowego payloadu z węzłów (nowy format) ──
+print("=== 1. Send raw telemetry from Pico_01 and Pico_02 (no pre-registration) ===")
+s, b1 = req("POST", "/api/nodes/telemetry/", {"node_id": "Pico_01", "payload": {"data": 25.4}}, token=device_access)
 assert s == 201, f"Send telemetry Pico_01 failed: {b1}"
-s, b2 = req("POST", "/api/nodes/telemetry/", {"node_id": "Pico_02", "value": 37.8}, token=device_access)
+assert b1["node_id"] == "Pico_01"
+assert b1["value"] == 25.4
+assert b1["sensor_type"] is None  # Brak konfiguracji → sensor_type jest None
+assert b1["raw_payload"] == {"data": 25.4}
+
+s, b2 = req("POST", "/api/nodes/telemetry/", {"node_id": "Pico_02", "payload": {"data": 37.8}}, token=device_access)
 assert s == 201, f"Send telemetry Pico_02 failed: {b2}"
+assert b2["value"] == 37.8
+assert b2["sensor_type"] is None
 print("  [PASS]")
 
-# ── 3. Pobranie telemetrii bez filtra node_id ──
-print("\n=== 3. Get telemetry without node_id filter ===")
-s, readings = req("GET", f"/api/nodes/telemetry/?device_id={device_id}&sensor_type=temperature", token=tomek_access)
-assert s == 200, f"Get telemetry failed: {readings}"
-assert len(readings) == 2, f"Expected 2 readings, got {len(readings)}"
-values = [r["value"] for r in readings]
-assert 25.4 in values and 37.8 in values, f"Expected values 25.4 and 37.8, got {values}"
-print(f"  Received mixed values: {values}")
+# ── 2. Konfiguracja węzła przez użytkownika (node-config) ──
+print("\n=== 2. Configure node via node-config endpoint ===")
+s, b = req("POST", "/api/nodes/node-config/", {
+    "device_id": device_id,
+    "node_id": "Pico_01",
+    "sensor_type": "temperature",
+    "label": "Termometr glowny"
+}, token=tomek_access)
+assert s == 200, f"Node config failed: {b}"
+assert b["sensor_type"] == "temperature"
+assert b["label"] == "Termometr glowny"
+print("  [PASS]")
+
+# ── 3. Po konfiguracji — nowe odczyty powinny mieć sensor_type ──
+print("\n=== 3. After config - new readings have sensor_type ===")
+s, b3 = req("POST", "/api/nodes/telemetry/", {"node_id": "Pico_01", "payload": {"data": 26.1}}, token=device_access)
+assert s == 201, f"Send telemetry after config failed: {b3}"
+assert b3["sensor_type"] == "temperature"
+assert b3["value"] == 26.1
 print("  [PASS]")
 
 # ── 4. Pobranie telemetrii z filtrem node_id=Pico_01 ──
 print("\n=== 4. Get telemetry with node_id=Pico_01 ===")
-s, readings = req("GET", f"/api/nodes/telemetry/?device_id={device_id}&sensor_type=temperature&node_id=Pico_01", token=tomek_access)
-assert s == 200, f"Get telemetry Pico_01 failed: {readings}"
-assert len(readings) == 1, f"Expected 1 reading, got {len(readings)}"
-assert readings[0]["node_id"] == "Pico_01"
-assert readings[0]["value"] == 25.4
-print(f"  Received Pico_01 value: {readings[0]['value']}")
+s, readings = req("GET", f"/api/nodes/telemetry/?device_id={device_id}&node_id=Pico_01", token=tomek_access)
+assert s == 200, f"Get telemetry failed: {readings}"
+assert len(readings) >= 2, f"Expected at least 2 readings for Pico_01, got {len(readings)}"
+for r in readings:
+    assert r["node_id"] == "Pico_01", f"Unexpected node_id: {r['node_id']}"
+values = [r["value"] for r in readings]
+print(f"  Pico_01 values: {values}")
 print("  [PASS]")
 
 # ── 5. Pobranie telemetrii z filtrem node_id=Pico_02 ──
 print("\n=== 5. Get telemetry with node_id=Pico_02 ===")
-s, readings = req("GET", f"/api/nodes/telemetry/?device_id={device_id}&sensor_type=temperature&node_id=Pico_02", token=tomek_access)
+s, readings = req("GET", f"/api/nodes/telemetry/?device_id={device_id}&node_id=Pico_02", token=tomek_access)
 assert s == 200, f"Get telemetry Pico_02 failed: {readings}"
-assert len(readings) == 1, f"Expected 1 reading, got {len(readings)}"
+assert len(readings) == 1, f"Expected 1 reading for Pico_02, got {len(readings)}"
 assert readings[0]["node_id"] == "Pico_02"
 assert readings[0]["value"] == 37.8
-print(f"  Received Pico_02 value: {readings[0]['value']}")
+assert readings[0]["sensor_type"] is None  # Pico_02 nie jest skonfigurowany
+print(f"  Pico_02 value: {readings[0]['value']}")
 print("  [PASS]")
 
-print("\n[SUCCESS] All telemetry isolation tests passed!")
+# ── 6. Filtrowanie po sensor_type ──
+print("\n=== 6. Filter telemetry by sensor_type=temperature ===")
+s, readings = req("GET", f"/api/nodes/telemetry/?device_id={device_id}&sensor_type=temperature", token=tomek_access)
+assert s == 200
+# Powinny być tylko odczyty z Pico_01 po konfiguracji (jeden z b3)
+for r in readings:
+    assert r["sensor_type"] == "temperature"
+print(f"  Temperature readings count: {len(readings)}")
+print("  [PASS]")
+
+print("\n[SUCCESS] All telemetry tests passed!")

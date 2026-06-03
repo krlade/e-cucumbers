@@ -397,32 +397,33 @@
         font-weight: bold;
     }
 
-    .badge-pending {
-        background: #d97706;
-        color: white;
-    }
+    .badge-pending { background: #d97706; color: white; }
+    .badge-delivered { background: #059669; color: white; }
+    .badge-executing { background: #2563eb; color: white; animation: pulse-blue 2s infinite; }
+    .badge-completed { background: #6b7280; color: white; }
+    @keyframes pulse-blue { 0% { opacity: 0.85; } 50% { opacity: 1; } 100% { opacity: 0.85; } }
 
-    .badge-delivered {
-        background: #059669;
-        color: white;
-    }
-    
-    .badge-executing {
-        background: #2563eb;
-        color: white;
-        animation: pulse-blue 2s infinite;
-    }
+    .online-badge { display:inline-flex; align-items:center; gap:0.35rem; padding:0.2rem 0.65rem; border-radius:50px; font-size:0.7rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; }
+    .online-badge.online { background:#d1fae5; color:#065f46; }
+    .online-badge.offline { background:#fee2e2; color:#991b1b; }
+    .online-dot { width:7px; height:7px; border-radius:50%; }
+    .online-badge.online .online-dot { background:#10b981; }
+    .online-badge.offline .online-dot { background:#ef4444; }
+    .last-seen-text { font-size:0.75rem; color:var(--gray-500); }
 
-    .badge-completed {
-        background: #6b7280;
-        color: white;
-    }
+    .node-config-card { background:linear-gradient(135deg,#fffbeb,#fef3c7); border:1px dashed #d97706; border-radius:var(--radius); padding:1rem 1.25rem; margin-bottom:0.75rem; }
+    .node-config-card h4 { font-size:0.85rem; font-weight:700; color:#92400e; margin:0 0 0.5rem; }
+    .node-config-form { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; }
+    .node-config-form select, .node-config-form input[type="text"] { padding:0.3rem 0.5rem; border:1px solid #d97706; border-radius:4px; font-size:0.8rem; background:white; }
 
-    @keyframes pulse-blue {
-        0% { opacity: 0.85; }
-        50% { opacity: 1; }
-        100% { opacity: 0.85; }
-    }
+    .offline-alert { background:#fef2f2; border:1px solid #fca5a5; border-radius:var(--radius); padding:1rem 1.25rem; margin-bottom:1rem; display:flex; align-items:flex-start; gap:0.75rem; }
+    .offline-alert-icon { font-size:1.2rem; margin-top:0.1rem; }
+    .offline-alert-body { flex:1; }
+    .offline-alert-body p { font-size:0.82rem; color:#7f1d1d; margin:0.25rem 0 0; }
+    .offline-alert-title { font-weight:700; color:#991b1b; font-size:0.875rem; }
+    .repair-token-box { display:none; background:white; border:1px solid #fca5a5; border-radius:6px; padding:0.75rem; margin-top:0.75rem; }
+    .repair-token-box.visible { display:block; }
+    .repair-token-value { font-size:1.4rem; font-weight:700; color:#b45309; font-family:monospace; letter-spacing:0.08em; }
 </style>
 {% endblock %}
 
@@ -515,134 +516,148 @@
                 <span class="status-badge" style="{% if d.role == 'admin' %}background: var(--green-100); color: var(--green-800);{% else %}background: var(--gray-100); color: var(--gray-600);{% endif %}">
                     Rola: {{ d.role }}
                 </span>
+                <span class="online-badge {% if d.is_online %}online{% else %}offline{% endif %}">
+                    <span class="online-dot"></span>
+                    {% if d.is_online %}Online{% else %}Offline{% endif %}
+                </span>
             </div>
-            <div class="device-summary-container" id="summary-{{ d.unit.device_id }}">
-                <span style="color: var(--gray-400);">Ładowanie danych...</span>
+            <div style="display:flex; align-items:center; gap:1rem;">
+                {% if d.last_heartbeat %}
+                <span class="last-seen-text">Ostatnia aktualizacja: {{ d.last_heartbeat|date:"d.m.Y H:i:s" }}</span>
+                {% else %}
+                <span class="last-seen-text" style="color:var(--gray-400);">Brak polaczenia</span>
+                {% endif %}
+                <div class="device-summary-container" id="summary-{{ d.unit.device_id }}">
+                    <span style="color: var(--gray-400);">Ladowanie...</span>
+                </div>
             </div>
         </div>
 
         <div class="device-grid">
-            <!-- LEWA SEKCJA: ODCZYTY TELEMETRII I PANEL STEROWANIA -->
+            <!-- LEWA SEKCJA -->
             <div>
+                <!-- OFFLINE ALERT + PONOWNE PAROWANIE -->
+                {% if not d.is_online %}
+                <div class="offline-alert">
+                    <div class="offline-alert-icon">&#9888;</div>
+                    <div class="offline-alert-body">
+                        <div class="offline-alert-title">Stacja offline</div>
+                        <p>Brak polaczenia z Gateway. Jesli tokeny wygasly, wygeneruj token parowania i uruchom ponownie Gateway z tym samym ID urzadzenia &mdash; stare dane i ustawienia zostana zachowane.</p>
+                        <div id="repairbox-{{ d.unit.device_id }}" class="repair-token-box">
+                            <div style="font-size:0.75rem;color:var(--gray-500);margin-bottom:0.25rem;">Token ponownego parowania:</div>
+                            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                                <span class="repair-token-value" id="repairtoken-val-{{ d.unit.device_id }}"></span>
+                                <button class="btn btn-secondary btn-sm" style="padding:0.2rem 0.5rem;font-size:0.7rem;" onclick="copyRepairToken('{{ d.unit.device_id }}')">Kopiuj</button>
+                            </div>
+                            <div id="repairtoken-timer-{{ d.unit.device_id }}" style="font-size:0.75rem;color:var(--gray-500);"></div>
+                            <p style="margin-top:0.5rem;font-size:0.75rem;color:#7f1d1d;">Podaj ten token przy uruchamianiu Gateway (razem z ID: <strong>{{ d.unit.device_id }}</strong>).</p>
+                        </div>
+                        <button class="btn btn-sm" style="margin-top:0.5rem;padding:0.3rem 0.75rem;font-size:0.78rem;background:#dc2626;" onclick="generateRepairToken('{{ d.unit.device_id }}')">
+                            Wygeneruj token parowania
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- ODCZYTY TELEMETRII -->
-                <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--green-900); margin-bottom: 0.75rem;">
-                    Odczyty z czujników (Wizualizacja)
-                </h3>
-                <div class="sensors-grid">
-                    {% for p in d.peripherals %}
-                        {% if p.sensor_type %}
-                        <div class="sensor-card">
-                            <div class="sensor-header" style="display:flex; justify-content:space-between; align-items:center;">
-                                <span style="font-weight:700; color:var(--gray-700);">
-                                    {{ p.node_id }} &middot; 
-                                    <span style="font-weight:500; color:var(--gray-500); font-size:0.8rem;">
-                                        {% if p.sensor_type == 'temperature' %}Temperatura{% elif p.sensor_type == 'humidity' %}Wilgotność{% else %}Natężenie światła{% endif %}
-                                    </span>
-                                </span>
-                                <div class="time-range-group" id="range-group-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}">
-                                    <button class="btn-range" onclick="changeChartRange('{{ d.unit.device_id }}', '{{ p.node_id }}', '{{ p.sensor_type }}', '5m', this)">5m</button>
-                                    <button class="btn-range" onclick="changeChartRange('{{ d.unit.device_id }}', '{{ p.node_id }}', '{{ p.sensor_type }}', '15m', this)">15m</button>
-                                    <button class="btn-range" onclick="changeChartRange('{{ d.unit.device_id }}', '{{ p.node_id }}', '{{ p.sensor_type }}', '30m', this)">30m</button>
-                                    <button class="btn-range active" onclick="changeChartRange('{{ d.unit.device_id }}', '{{ p.node_id }}', '{{ p.sensor_type }}', 'all', this)">Wszystko</button>
-                                </div>
-                            </div>
-                            <div class="sensor-val" id="val-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}">
-                                <span class="num">--</span>
-                                <span class="sensor-unit">
-                                    {% if p.sensor_type == 'temperature' %}°C{% elif p.sensor_type == 'humidity' %}%{% else %}lux{% endif %}
-                                </span>
-                            </div>
-                            <div class="sensor-chart-container">
-                                <canvas id="chart-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}"></canvas>
+                <h3 style="font-size:0.95rem;font-weight:700;color:var(--green-900);margin-bottom:0.75rem;">Odczyty z czujnikow</h3>
+                <div class="sensors-grid" id="sensors-grid-{{ d.unit.device_id }}">
+                    {% for p in d.peripherals %}{% if p.sensor_type %}
+                    <div class="sensor-card">
+                        <div class="sensor-header" style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-weight:700;color:var(--gray-700);">{% if p.label %}{{ p.label }}{% else %}{{ p.node_id }}{% endif %} &middot; <span style="font-weight:500;color:var(--gray-500);font-size:0.8rem;">{% if p.sensor_type == 'temperature' %}Temperatura{% elif p.sensor_type == 'humidity' %}Wilgotnosc{% else %}Swiatlo{% endif %}</span></span>
+                            <div class="time-range-group">
+                                <button class="btn-range" onclick="changeChartRange('{{ d.unit.device_id }}','{{ p.node_id }}','{{ p.sensor_type }}','5m',this)">5m</button>
+                                <button class="btn-range" onclick="changeChartRange('{{ d.unit.device_id }}','{{ p.node_id }}','{{ p.sensor_type }}','15m',this)">15m</button>
+                                <button class="btn-range" onclick="changeChartRange('{{ d.unit.device_id }}','{{ p.node_id }}','{{ p.sensor_type }}','30m',this)">30m</button>
+                                <button class="btn-range active" onclick="changeChartRange('{{ d.unit.device_id }}','{{ p.node_id }}','{{ p.sensor_type }}','all',this)">Wszystko</button>
                             </div>
                         </div>
-                        {% endif %}
-                    {% empty %}
-                        <div style="grid-column: span 2; text-align: center; color: var(--gray-400); font-size: 0.85rem; padding: 1.5rem; border: 1px dashed var(--gray-300); border-radius: var(--radius);">
-                            Brak aktywnych sensorów na tej stacji.
+                        <div class="sensor-val" id="val-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}">
+                            <span class="num">--</span>
+                            <span class="sensor-unit">{% if p.sensor_type == 'temperature' %}C{% elif p.sensor_type == 'humidity' %}%{% else %}lux{% endif %}</span>
                         </div>
+                        <div class="sensor-chart-container"><canvas id="chart-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.sensor_type }}"></canvas></div>
+                    </div>
+                    {% endif %}{% endfor %}
+
+                    {% for node_id in d.telemetry_nodes %}
+                    <div class="node-config-card" id="newnode-{{ d.unit.device_id }}-{{ node_id }}" style="display:none;">
+                        <h4>&#128225; Nowy wezel: <code>{{ node_id }}</code></h4>
+                        <p style="font-size:0.8rem;color:#92400e;margin:0 0 0.5rem;">Ten wezel przesyla dane. Skonfiguruj go, aby wyswietlic wykres.</p>
+                        <div class="node-config-form">
+                            <input type="text" id="label-{{ d.unit.device_id }}-{{ node_id }}" placeholder="Nazwa (np. Termometr szklarni)" style="flex:1;min-width:150px;">
+                            <select id="stype-{{ d.unit.device_id }}-{{ node_id }}">
+                                <option value="">-- Typ czujnika --</option>
+                                <option value="temperature">Temperatura (C)</option>
+                                <option value="humidity">Wilgotnosc (%)</option>
+                                <option value="light">Swiatlo (lux)</option>
+                            </select>
+                            <button class="btn btn-sm" style="padding:0.3rem 0.85rem;" onclick="saveNodeConfig('{{ d.unit.device_id }}','{{ node_id }}')">Zapisz</button>
+                            <span id="ncfg-status-{{ d.unit.device_id }}-{{ node_id }}" style="font-size:0.75rem;color:var(--gray-500);"></span>
+                        </div>
+                    </div>
                     {% endfor %}
+
+                    <div id="no-sensors-msg-{{ d.unit.device_id }}" style="display:none;grid-column:span 2;text-align:center;color:var(--gray-400);font-size:0.85rem;padding:1.5rem;border:1px dashed var(--gray-300);border-radius:var(--radius);">Brak danych z czujnikow. Gdy wezel Pico zacznie nadawac, pojawi sie tutaj.</div>
                 </div>
 
-                <!-- PANEL STEROWANIA URZĄDZENIAMI -->
-                <div class="controls-box" style="background:transparent; border:none; padding:0; margin-bottom:1.5rem;">
-                    <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--green-900); margin-bottom: 0.75rem; border-bottom: 2px solid var(--green-100); padding-bottom: 0.5rem;">
-                        Panel Sterowania Peryferiami
-                    </h3>
-                    {% for p in d.peripherals %}
-                        {% if p.peripheral_type %}
-                        <div class="control-card">
-                            <div class="control-card-header">
-                                <div class="control-card-title">
-                                    {% if p.peripheral_type == 'LAMP' %}
-                                        <svg style="width:16px; height:16px; fill:var(--green-700);" viewBox="0 0 24 24"><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z" /></svg>
-                                    {% else %}
-                                        <svg style="width:16px; height:16px; fill:#3b82f6;" viewBox="0 0 24 24"><path d="M12,20A6,6 0 0,1 6,14C6,10 12,3.25 12,3.25C12,3.25 18,10 18,14A6,6 0 0,1 12,20Z" /></svg>
-                                    {% endif %}
-                                    <span>{{ p.node_id }} &middot; GPIO {{ p.gpio }}</span>
-                                    <span style="font-size:0.75rem; font-weight:700; color:var(--gray-400); text-transform:uppercase;">({{ p.peripheral_type }})</span>
-                                </div>
-                                <div class="control-card-status">
-                                    <div class="status-dot" id="led-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}"></div>
-                                    <span class="status-text" id="state-lbl-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}">WYŁĄCZONY</span>
-                                </div>
+                <!-- PANEL STEROWANIA -->
+                <div style="background:transparent;border:none;padding:0;margin-bottom:1.5rem;">
+                    <h3 style="font-size:0.95rem;font-weight:700;color:var(--green-900);margin-bottom:0.75rem;border-bottom:2px solid var(--green-100);padding-bottom:0.5rem;">Panel Sterowania</h3>
+                    {% for p in d.peripherals %}{% if p.peripheral_type %}
+                    <div class="control-card">
+                        <div class="control-card-header">
+                            <div class="control-card-title">
+                                {% if p.peripheral_type == 'LAMP' %}<svg style="width:16px;height:16px;fill:var(--green-700);" viewBox="0 0 24 24"><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></svg>{% else %}<svg style="width:16px;height:16px;fill:#3b82f6;" viewBox="0 0 24 24"><path d="M12,20A6,6 0 0,1 6,14C6,10 12,3.25 12,3.25C12,3.25 18,10 18,14A6,6 0 0,1 12,20Z"/></svg>{% endif %}
+                                <span>{% if p.label %}{{ p.label }}{% else %}{{ p.node_id }}{% endif %} &middot; GPIO {{ p.gpio }}</span>
                             </div>
-                            <div class="control-card-body">
-                                <div class="control-btn-group">
-                                    {% if p.peripheral_type == 'LAMP' %}
-                                        <button class="btn btn-sm" style="padding:0.35rem 0.85rem;" onclick="sendCmd('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'TURN_ON')">Włącz</button>
-                                        <button class="btn btn-sm btn-off" style="padding:0.35rem 0.85rem;" onclick="sendCmd('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'TURN_OFF')">Wyłącz</button>
-                                    {% elif p.peripheral_type == 'SPRINKLER' %}
-                                        <button class="btn btn-sm btn-off" style="padding:0.35rem 0.85rem;" onclick="sendCmd('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'TURN_OFF')">Wyłącz</button>
-                                    {% endif %}
-                                </div>
-                                <div class="control-btn-group">
-                                    {% if p.peripheral_type == 'LAMP' %}
-                                        <div class="control-input-group">
-                                            <input type="number" id="time-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" value="10" min="1" max="1440">
-                                            <span>min</span>
-                                        </div>
-                                        <button class="btn btn-sm btn-secondary" style="padding:0.35rem 0.85rem; width:auto;" onclick="sendCmdForTime('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'TURN_ON_FOR')">Uruchom na czas</button>
-                                    {% elif p.peripheral_type == 'SPRINKLER' %}
-                                        <div class="control-input-group">
-                                            <input type="number" id="time-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" value="15" min="1" max="240">
-                                            <span>min</span>
-                                        </div>
-                                        <button class="btn btn-sm" style="padding:0.35rem 0.85rem; width:auto; background:#2563eb;" onclick="sendCmdForTime('{{ d.unit.device_id }}', '{{ p.node_id }}', {{ p.gpio }}, 'WATER_PUMP_ON')">Nawadniaj</button>
-                                    {% endif %}
-                                    <span id="status-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" class="status-msg" style="opacity: 0;"></span>
-                                </div>
+                            <div class="control-card-status">
+                                <div class="status-dot" id="led-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}"></div>
+                                <span class="status-text" id="state-lbl-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}">WYLACZONY</span>
                             </div>
                         </div>
-                        {% endif %}
-                    {% empty %}
-                        <div style="text-align: center; color: var(--gray-400); font-size: 0.85rem; padding: 1.5rem; border: 1px dashed var(--gray-300); border-radius: var(--radius); background:var(--gray-50);">
-                            Brak urządzeń sterowanych (LAMP / SPRINKLER).
+                        <div class="control-card-body">
+                            <div class="control-btn-group">
+                                {% if p.peripheral_type == 'LAMP' %}
+                                <button class="btn btn-sm" onclick="sendCmd('{{ d.unit.device_id }}','{{ p.node_id }}',{{ p.gpio }},'TURN_ON')">Wlacz</button>
+                                <button class="btn btn-sm btn-off" onclick="sendCmd('{{ d.unit.device_id }}','{{ p.node_id }}',{{ p.gpio }},'TURN_OFF')">Wylacz</button>
+                                {% elif p.peripheral_type == 'SPRINKLER' %}
+                                <button class="btn btn-sm btn-off" onclick="sendCmd('{{ d.unit.device_id }}','{{ p.node_id }}',{{ p.gpio }},'TURN_OFF')">Wylacz</button>
+                                {% endif %}
+                            </div>
+                            <div class="control-btn-group">
+                                {% if p.peripheral_type == 'LAMP' %}
+                                <div class="control-input-group"><input type="number" id="time-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" value="10" min="1" max="1440"><span>min</span></div>
+                                <button class="btn btn-sm btn-secondary" style="width:auto;" onclick="sendCmdForTime('{{ d.unit.device_id }}','{{ p.node_id }}',{{ p.gpio }},'TURN_ON_FOR')">Wlacz na czas</button>
+                                {% elif p.peripheral_type == 'SPRINKLER' %}
+                                <div class="control-input-group"><input type="number" id="time-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" value="15" min="1" max="240"><span>min</span></div>
+                                <button class="btn btn-sm" style="width:auto;background:#2563eb;" onclick="sendCmdForTime('{{ d.unit.device_id }}','{{ p.node_id }}',{{ p.gpio }},'WATER_PUMP_ON')">Nawadniaj</button>
+                                {% endif %}
+                                <span id="status-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" class="status-msg" style="opacity:0;"></span>
+                            </div>
                         </div>
+                    </div>
+                    {% endif %}{% empty %}
+                    <div style="text-align:center;color:var(--gray-400);font-size:0.85rem;padding:1.5rem;border:1px dashed var(--gray-300);border-radius:var(--radius);background:var(--gray-50);">Brak skonfigurowanych urzadzen sterowanych.</div>
                     {% endfor %}
                 </div>
             </div>
 
-            <!-- PRAWA SEKCJA: KOLEJKA I HISTORIA KOMEND -->
+            <!-- PRAWA SEKCJA: DZIENNIK KOMEND -->
             <div>
                 <div class="logs-box">
                     <h3>Dziennik Komend Stacji</h3>
-                    <div style="max-height: 330px; overflow-y: auto;">
+                    <div style="max-height:330px;overflow-y:auto;">
                         <table class="log-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 25%;">Czas</th>
-                                    <th style="width: 20%;">Węzeł (Pin)</th>
-                                    <th style="width: 35%;">Komenda</th>
-                                    <th style="width: 20%;">Status</th>
-                                </tr>
-                            </thead>
+                            <thead><tr>
+                                <th style="width:22%;">Czas</th>
+                                <th style="width:28%;">Urzadzenie</th>
+                                <th style="width:35%;">Akcja</th>
+                                <th style="width:15%;">Status</th>
+                            </tr></thead>
                             <tbody id="cmd-log-tbody-{{ d.unit.device_id }}">
-                                <tr>
-                                    <td colspan="4" style="text-align: center; color: var(--gray-500); padding: 2rem 0;">
-                                        Ładowanie historii komend...
-                                    </td>
-                                </tr>
+                                <tr><td colspan="4" style="text-align:center;color:var(--gray-500);padding:2rem 0;">Ladowanie historii...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -651,20 +666,13 @@
         </div>
 
         <div class="device-footer">
-            <div style="font-size: 0.8rem; color: var(--gray-500);">
-                Zarejestrowano: {{ d.unit.registered_at|date:"d.m.Y H:i" }}
-            </div>
-            <button class="btn btn-sm btn-off" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; margin: 0; background: var(--red-500); width: auto;" onclick="unregisterDevice('{{ d.unit.device_id }}')">
-                Wyrejestruj stację
-            </button>
+            <div style="font-size:0.8rem;color:var(--gray-500);">Zarejestrowano: {{ d.unit.registered_at|date:"d.m.Y H:i" }}</div>
+            <button class="btn btn-sm" style="padding:0.3rem 0.6rem;font-size:0.75rem;margin:0;background:#dc2626;width:auto;" onclick="unregisterDevice('{{ d.unit.device_id }}')">Wyrejestruj stacje</button>
         </div>
     </div>
     {% endfor %}
 {% else %}
-    <div style="background: var(--gray-50); border: 1px dashed var(--gray-300); border-radius: 0.5rem;
-                padding: 2.5rem; text-align: center; color: var(--gray-500); font-size: 0.9rem;">
-        Brak przypisanych Jednostek Centralnych. Użyj przycisku "Generuj Token Parowania" i podłącz Raspberry Pi do systemu.
-    </div>
+    <div style="background:var(--gray-50);border:1px dashed var(--gray-300);border-radius:0.5rem;padding:2.5rem;text-align:center;color:var(--gray-500);font-size:0.9rem;">Brak przypisanych Jednostek Centralnych. Uzyj przycisku Generuj Token Parowania i podlacz Raspberry Pi do systemu.</div>
 {% endif %}
 
 <script>
@@ -797,6 +805,20 @@
         {% endfor %}
     };
 
+    // Wezly znane z telemetrii (nawet bez konfiguracji)
+    const telemetryNodeIds = {
+        {% for d in devices %}
+        "{{ d.unit.device_id }}": [{% for node_id in d.telemetry_nodes %}"{{ node_id }}",{% endfor %}],
+        {% endfor %}
+    };
+
+    // Wezly juz skonfigurowane (maja sensor_type)
+    const configuredNodes = {
+        {% for d in devices %}
+        "{{ d.unit.device_id }}": [{% for p in d.peripherals %}{% if p.sensor_type %}"{{ p.node_id }}",{% endif %}{% endfor %}],
+        {% endfor %}
+    };
+
     const charts = {}; // chartId -> Chart instance
     const chartRanges = {}; // deviceId_nodeId_sensorType -> '5m' | '15m' | '30m' | 'all'
     const latestTelemetry = {}; // deviceId_nodeId_sensorType -> { nodeId, sensorType, value, unit }
@@ -880,6 +902,28 @@
         // Pierwsze wczytanie logów komend dla każdego urządzenia
         deviceIds.forEach(devId => {
             updateCommandLog(devId);
+        });
+
+        // Pokaz karty konfiguracyjne dla nieskonfigurowanych wezlow
+        deviceIds.forEach(devId => {
+            const knownNodes = telemetryNodeIds[devId] || [];
+            const configured = configuredNodes[devId] || [];
+            let unconfiguredCount = 0;
+            knownNodes.forEach(nodeId => {
+                const el = document.getElementById(`newnode-${devId}-${nodeId}`);
+                if (el) {
+                    if (!configured.includes(nodeId)) {
+                        el.style.display = 'block';
+                        unconfiguredCount++;
+                    } else {
+                        el.style.display = 'none';
+                    }
+                }
+            });
+            const noSensorsMsg = document.getElementById(`no-sensors-msg-${devId}`);
+            if (noSensorsMsg) {
+                noSensorsMsg.style.display = (configured.length === 0 && unconfiguredCount === 0) ? 'block' : 'none';
+            }
         });
 
         // Restore collapse states from localStorage
@@ -1185,11 +1229,12 @@
             tbody.innerHTML = commands.map(cmd => {
                 const date = new Date(cmd.created_at);
                 const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                const paramStr = cmd.time ? ` (${cmd.time} min)` : "";
-                
+                // Czytelna akcja zamiast technicznej komendy
+                const humanAction = cmd.human_description || cmd.command;
+
                 let badgeClass = "badge-completed";
                 let badgeStyle = "";
-                let badgeLabel = "Ukończono";
+                let badgeLabel = "Wykonano";
                 let countdownAttr = "";
 
                 if (cmd.status === "pending") {
@@ -1233,8 +1278,8 @@
 
                 return `<tr>
                     <td style="color:var(--gray-400);">${timeStr}</td>
-                    <td style="font-weight:600; color:var(--green-400);">${cmd.node_id} (pin ${cmd.gpio})</td>
-                    <td>${cmd.command}${paramStr}</td>
+                    <td style="font-weight:600; color:var(--green-400);">${cmd.node_id}</td>
+                    <td>${humanAction}</td>
                     <td>${finalBadge}</td>
                 </tr>`;
             }).join("");
@@ -1445,5 +1490,76 @@
             localStorage.setItem(`device-collapsed-${deviceId}`, isCollapsed ? 'true' : 'false');
         }
     }
+
+    // ── KONFIGURACJA WEZLA (nieskonfigurowany sensor) ──
+    async function saveNodeConfig(deviceId, nodeId) {
+        const labelEl = document.getElementById(`label-${deviceId}-${nodeId}`);
+        const stypeEl = document.getElementById(`stype-${deviceId}-${nodeId}`);
+        const statusEl = document.getElementById(`ncfg-status-${deviceId}-${nodeId}`);
+
+        const sensorType = stypeEl ? stypeEl.value : '';
+        const label = labelEl ? labelEl.value.trim() : '';
+
+        if (!sensorType) {
+            if (statusEl) { statusEl.textContent = 'Wybierz typ czujnika.'; statusEl.style.color = '#d97706'; }
+            return;
+        }
+
+        try {
+            if (statusEl) { statusEl.textContent = 'Zapisywanie...'; statusEl.style.color = 'var(--gray-500)'; }
+            const resp = await fetch('/api/nodes/node-config/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ device_id: deviceId, node_id: nodeId, sensor_type: sensorType, label: label || null })
+            });
+            if (resp.ok) {
+                if (statusEl) { statusEl.textContent = 'Zapisano! Odswiezam...'; statusEl.style.color = '#10b981'; }
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                const err = await resp.json();
+                if (statusEl) { statusEl.textContent = 'Blad: ' + (err.detail || JSON.stringify(err)); statusEl.style.color = '#dc2626'; }
+            }
+        } catch (e) {
+            if (statusEl) { statusEl.textContent = 'Blad sieci.'; statusEl.style.color = '#dc2626'; }
+        }
+    }
+
+    // ── PONOWNE PAROWANIE (Offline Gateway) ──
+    const repairTimers = {};
+    async function generateRepairToken(deviceId) {
+        try {
+            const resp = await fetch('/api/nodes/pairing-token/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') }
+            });
+            if (!resp.ok) { alert('Blad generowania tokenu: ' + resp.status); return; }
+            const data = await resp.json();
+            const box = document.getElementById(`repairbox-${deviceId}`);
+            const valEl = document.getElementById(`repairtoken-val-${deviceId}`);
+            const timerEl = document.getElementById(`repairtoken-timer-${deviceId}`);
+            if (box) box.classList.add('visible');
+            if (valEl) valEl.textContent = data.token;
+            clearInterval(repairTimers[deviceId]);
+            let remaining = data.expires_in_seconds;
+            function updateRepairTimer() {
+                if (remaining <= 0) { if (timerEl) timerEl.textContent = 'Token wygasl.'; clearInterval(repairTimers[deviceId]); return; }
+                const m = Math.floor(remaining / 60), s = remaining % 60;
+                if (timerEl) timerEl.textContent = `Wazny jeszcze: ${m}:${s.toString().padStart(2,'0')}`;
+                remaining--;
+            }
+            updateRepairTimer();
+            repairTimers[deviceId] = setInterval(updateRepairTimer, 1000);
+        } catch (e) {
+            alert('Blad polaczenia: ' + e.message);
+        }
+    }
+
+    function copyRepairToken(deviceId) {
+        const valEl = document.getElementById(`repairtoken-val-${deviceId}`);
+        if (!valEl) return;
+        navigator.clipboard.writeText(valEl.textContent.trim()).then(() => {
+            alert('Token skopiowany!');
+        });
+    }
 </script>
-{% endblock %}
+{% endblock %}

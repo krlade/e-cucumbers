@@ -83,7 +83,9 @@ def register_view(request):
 
 @login_required
 def dashboard_view(request):
-    from nodes.models import DeviceOwnership, ControllableNode
+    from nodes.models import DeviceOwnership, ControllableNode, TelemetryReading
+    from django.utils import timezone
+
     ownerships = (
         DeviceOwnership.objects
         .filter(user=request.user)
@@ -92,15 +94,26 @@ def dashboard_view(request):
     )
     devices = []
     for o in ownerships:
-        peripherals = ControllableNode.objects.filter(gateway=o.device).order_by("node_id", "gpio")
+        unit = o.device
+        peripherals = ControllableNode.objects.filter(gateway=unit).order_by("node_id", "gpio")
+
+        # Węzły które przesyłają dane — znane z telemetrii (nawet bez konfiguracji)
+        telemetry_node_ids = (
+            TelemetryReading.objects
+            .filter(gateway=unit)
+            .values_list("node_id", flat=True)
+            .distinct()
+        )
+
         devices.append({
-            "unit":            o.device,
-            "role":            o.role,
-            "lamp_count":      peripherals.filter(peripheral_type="LAMP").count(),
-            "sprinkler_count": peripherals.filter(peripheral_type="SPRINKLER").count(),
-            "peripherals":     peripherals,
+            "unit":             unit,
+            "role":             o.role,
+            "is_online":        unit.is_online,
+            "last_heartbeat":   unit.last_heartbeat,
+            "peripherals":      peripherals,
+            "telemetry_nodes":  list(telemetry_node_ids),
         })
-    return render(request, "dashboard.html", {"devices": devices})
+    return render(request, "dashboard.html", {"devices": devices, "now": timezone.now()})
 
 
 from django.contrib.auth.decorators import user_passes_test

@@ -6,60 +6,65 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+
 def check_expired_commands():
-    # Import inside to prevent circular dependency issues during django startup
-    from .models import ControllableNode, QueuedCommand
+    """Sprawdza co 2 sekundy czy komendy czasowe wygasły i kolejkuje TURN_OFF.
+
+    Webapp zarządza czasem — nie Gateway. Gdy czas TURN_ON_FOR / WATER_PUMP_ON minie,
+    scheduler automatycznie tworzy komendę TURN_OFF dla tego samego węzła i GPIO.
+    """
+    # Import wewnątrz funkcji — unikamy circular import przy starcie Django
+    from .models import CentralUnit, QueuedCommand
 
     while True:
         try:
             now = timezone.now()
-            # Find peripherals that can be controlled (have peripheral_type and gpio set)
-            peripherals = ControllableNode.objects.filter(
-                peripheral_type__isnull=False,
-                gpio__isnull=False
-            )
-            
-            for peripheral in peripherals:
-                # Find the latest delivered command for this peripheral
-                latest_cmd = QueuedCommand.objects.filter(
-                    peripheral=peripheral,
-                    status=QueuedCommand.STATUS_DELIVERED
-                ).order_by("-delivered_at").first()
-                
-                # If the latest command is a timed turn-on command:
-                if (
-                    latest_cmd 
-                    and latest_cmd.command in ["TURN_ON_FOR", "WATER_PUMP_ON"] 
-                    and latest_cmd.time 
-                    and latest_cmd.delivered_at
-                ):
-                    expire_time = latest_cmd.delivered_at + timedelta(minutes=latest_cmd.time)
-                    if now >= expire_time:
-                        # Check if a TURN_OFF command has already been created/queued since this command was delivered
-                        has_turn_off = QueuedCommand.objects.filter(
-                            peripheral=peripheral,
-                            command="TURN_OFF",
-                            created_at__gt=latest_cmd.delivered_at
-                        ).exists()
-                        
-                        if not has_turn_off:
-                            logger.info(
-                                f"Scheduler auto-queuing TURN_OFF for peripheral {peripheral} "
-                                f"(timed command '{latest_cmd.command}' with duration {latest_cmd.time}m expired)"
-                            )
-                            # Create a pending TURN_OFF command
-                            QueuedCommand.objects.create(
-                                peripheral=peripheral,
-                                command="TURN_OFF",
-                                status=QueuedCommand.STATUS_PENDING,
-                                issued_by=latest_cmd.issued_by
-                            )
+
+            # Znajdź wszystkie dostarczone komendy czasowe, które mogły wygasnąć
+            timed_commands = QueuedCommand.objects.filter(
+                status=QueuedCommand.STATUS_DELIVERED,
+                command__in=[QueuedCommand.COMMAND_TURN_ON_FOR, QueuedCommand.COMMAND_WATER_PUMP_ON],
+                time__isnull=False,
+                delivered_at__isnull=False,
+            ).select_related("gateway")
+
+            for cmd in timed_commands:
+                expire_time = cmd.delivered_at + timedelta(minutes=cmd.time)
+                if now < expire_time:
+                    continue  # Jeszcze nie wygasła
+
+                # Sprawdź czy TURN_OFF nie został już zakolejkowany po tej komendzie
+                already_off = QueuedCommand.objects.filter(
+                    gateway=cmd.gateway,
+                    node_id=cmd.node_id,
+                    gpio=cmd.gpio,
+                    command=QueuedCommand.COMMAND_TURN_OFF,
+                    created_at__gt=cmd.delivered_at,
+                ).exists()
+
+                if not already_off:
+                    logger.info(
+                        "Scheduler: kolejkuję TURN_OFF dla %s/%s GPIO%s "
+                        "(komenda '%s' na %s min wygasła)",
+                        cmd.gateway.device_id, cmd.node_id, cmd.gpio,
+                        cmd.command, cmd.time,
+                    )
+                    QueuedCommand.objects.create(
+                        gateway=cmd.gateway,
+                        node_id=cmd.node_id,
+                        gpio=cmd.gpio,
+                        command=QueuedCommand.COMMAND_TURN_OFF,
+                        status=QueuedCommand.STATUS_PENDING,
+                        issued_by=cmd.issued_by,
+                    )
+
         except Exception as e:
-            logger.error(f"Error in background scheduler: {e}", exc_info=True)
-            
+            logger.error("Błąd w schedulerze: %s", e, exc_info=True)
+
         time.sleep(2)
 
+
 def start_command_scheduler():
-    logger.info("Starting E-Cucumbers background command scheduler...")
+    logger.info("E-Cucumbers: uruchamiam scheduler komend w tle...")
     thread = threading.Thread(target=check_expired_commands, name="CommandSchedulerThread", daemon=True)
     thread.start()
