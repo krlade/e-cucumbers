@@ -55,7 +55,6 @@ class Node(models.Model):
     ]
 
     # Pojedynczy pin pomiarowy węzła
-    sensor_pin = models.IntegerField(null=True, blank=True, verbose_name="Pin sensoryczny")
     sensor_kind = models.CharField(max_length=50, choices=SENSOR_CHOICES, blank=True, null=True, verbose_name="Kategoria pomiaru")
     sensor_type = models.CharField(max_length=50, blank=True, null=True, verbose_name="Typ pomiaru")
     sensor_unit = models.CharField(max_length=20, blank=True, null=True, verbose_name="Jednostka")
@@ -76,11 +75,11 @@ class Node(models.Model):
     # Computed properties
     # ------------------------------------------------------------------
 
-    ONLINE_THRESHOLD = datetime.timedelta(minutes=5)
+    ONLINE_THRESHOLD = datetime.timedelta(minutes=2)
 
     @property
     def is_online(self) -> bool:
-        """True jeśli ostatnia transmisja była nie dalej niż 5 minut temu."""
+        """True jeśli ostatnia transmisja była nie dalej niż 2 minut temu."""
         if not self.last_seen:
             return False
         return (timezone.now() - self.last_seen) < self.ONLINE_THRESHOLD
@@ -110,8 +109,8 @@ class Switch(models.Model):
     ]
 
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="switches", verbose_name="Węzeł")
-    switch_id = models.IntegerField(verbose_name="ID Switcha / Pin")
-    state = models.BooleanField(default=False, verbose_name="Stan")
+    switch_id = models.IntegerField(verbose_name="Pin GPIO")
+    state = models.BooleanField(default=False, verbose_name="Enabled")
     switch_type = models.CharField(max_length=50, choices=TYPE_CHOICES, default=TYPE_LAMP, verbose_name="Typ")
 
     class Meta:

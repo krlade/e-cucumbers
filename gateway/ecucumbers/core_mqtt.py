@@ -35,6 +35,7 @@ class Device:
         # Pojedynczy pin sensoryczny i jego wartości
         self.sensor_pin = None
         self.sensor_type = None
+        self.sensor_kind = None
         self.sensor_unit = None
         self.sensor_min_value = None
         self.sensor_max_value = None
@@ -111,6 +112,21 @@ class Device:
         self._add_log(f"Otrzymano nowe dane: {data}")
         self._sync_to_db()
 
+        if not self.has_format:
+            self.get_format()
+
+        if self.sensor_last_value is not None:
+            try:
+                from ecucumbers.api_client import send_telemetry
+                import threading
+                threading.Thread(
+                    target=send_telemetry,
+                    args=(self.name, float(self.sensor_last_value)),
+                    daemon=True
+                ).start()
+            except Exception as e:
+                self._add_log(f"Błąd przekazywania telemetrii: {e}")
+
     def handle_reply(self, command, result, pin_arg=None):
         """Aktualizuje stan na podstawie odpowiedzi (temat: .../reply)"""
         if command == "get_pins":
@@ -145,6 +161,15 @@ class Device:
             if fmt is not None:
                 self.sensor_type = fmt.get("type")
                 self.sensor_unit = fmt.get("unit")
+                
+                unit = str(self.sensor_unit).strip() if self.sensor_unit else ""
+                if unit == "°C" or unit.lower() == "c":
+                    self.sensor_kind = "temperature"
+                elif unit == "%":
+                    self.sensor_kind = "humidity"
+                elif unit.lower() == "lux":
+                    self.sensor_kind = "light"
+
                 self.sensor_min_value = fmt.get("min")
                 self.sensor_max_value = fmt.get("max")
                 self.has_format = True
@@ -156,9 +181,11 @@ class Device:
             elif command == "set_off":
                 self.is_sending = False
             elif command == "pin_on" and pin_arg is not None:
+                self.pins[str(pin_arg)] = 1
                 from nodes.models import Switch
                 Switch.objects.filter(node__name=self.name, switch_id=int(pin_arg)).update(state=True)
             elif command == "pin_off" and pin_arg is not None:
+                self.pins[str(pin_arg)] = 0
                 from nodes.models import Switch
                 Switch.objects.filter(node__name=self.name, switch_id=int(pin_arg)).update(state=False)
             self._sync_to_db()
@@ -180,6 +207,7 @@ class Device:
                     'pins': self.pins,
                     'last_data': self.last_data,
                     'sensor_pin': self.sensor_pin,
+                    'sensor_kind': self.sensor_kind,
                     'sensor_type': self.sensor_type,
                     'sensor_unit': self.sensor_unit,
                     'sensor_min_value': self.sensor_min_value,
@@ -254,6 +282,7 @@ class Gateway:
                 device.pins = node.pins if node.pins else {}
                 
                 device.sensor_pin = node.sensor_pin
+                device.sensor_kind = node.sensor_kind
                 device.sensor_type = node.sensor_type
                 device.sensor_unit = node.sensor_unit
                 device.sensor_min_value = node.sensor_min_value

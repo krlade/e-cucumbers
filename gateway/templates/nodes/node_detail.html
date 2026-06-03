@@ -512,38 +512,34 @@
     <div class="data-card">
         <h2>Ostatnie dane</h2>
         {% with target=live_device|default:node %}
-        {% if target.sensor_pin is not None %}
-            <div class="sensor-pins-grid">
-                <div class="sensor-pin-card">
-                    {# Ostatnia znana wartość pinu #}
-                    <div id="status-sensor-value" class="{% if target.sensor_last_value is not None %}sensor-pin-value{% else %}sensor-pin-value-none{% endif %}">
-                        {% if target.sensor_last_value is not None %}
-                            {{ target.sensor_last_value }}{% if target.sensor_unit %}<span class="unit">{{ target.sensor_unit }}</span>{% endif %}
-                        {% else %}
-                            brak pomiaru
-                        {% endif %}
-                    </div>
-
-                    {# Metadane formatu #}
-                    {% if target.sensor_type or target.sensor_unit or target.sensor_min_value is not None %}
-                    <div class="sensor-pin-meta">
-                        {% if target.sensor_type %}
-                        <span class="sensor-meta-badge smb-type">{{ target.sensor_type }}</span>
-                        {% endif %}
-                        {% if target.sensor_min_value is not None and target.sensor_max_value is not None %}
-                        <span class="sensor-meta-badge smb-range">{{ target.sensor_min_value }}&thinsp;…&thinsp;{{ target.sensor_max_value }}</span>
-                        {% endif %}
-                    </div>
+        <div class="sensor-pins-grid">
+            <div class="sensor-pin-card">
+                {# Ostatnia znana wartość pinu #}
+                <div id="status-sensor-value" class="{% if target.sensor_last_value is not None %}sensor-pin-value{% else %}sensor-pin-value-none{% endif %}">
+                    {% if target.sensor_last_value is not None %}
+                        {{ target.sensor_last_value }}{% if target.sensor_unit %}<span class="unit">{{ target.sensor_unit }}</span>{% endif %}
                     {% else %}
-                    <div class="sensor-pin-meta">
-                        <span class="sensor-meta-badge smb-pending">⏳ oczekiwanie na format…</span>
-                    </div>
+                        brak pomiaru
                     {% endif %}
                 </div>
+
+                {# Metadane formatu #}
+                {% if target.sensor_type or target.sensor_unit or target.sensor_min_value is not None %}
+                <div class="sensor-pin-meta">
+                    {% if target.sensor_type %}
+                    <span class="sensor-meta-badge smb-type">{{ target.sensor_type }}</span>
+                    {% endif %}
+                    {% if target.sensor_min_value is not None and target.sensor_max_value is not None %}
+                    <span class="sensor-meta-badge smb-range">{{ target.sensor_min_value }}&thinsp;…&thinsp;{{ target.sensor_max_value }}</span>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="sensor-pin-meta">
+                    <span class="sensor-meta-badge smb-pending">⏳ oczekiwanie na format…</span>
+                </div>
+                {% endif %}
             </div>
-        {% else %}
-            <p class="empty-hint">Brak przypisanego pinu sensorycznego &mdash; wywołaj get_pins aby pobrać informację.</p>
-        {% endif %}
+        </div>
         {% endwith %}
     </div>
 
@@ -554,9 +550,21 @@
             {% if node.switches.exists %}
                 <div class="pins-grid">
                     {% for switch in node.switches.all %}
-                        <span class="pin-chip {% if switch.state %}pin-high{% else %}pin-low{% endif %}">
-                            GPIO {{ switch.switch_id }}: {% if switch.state %}HIGH{% else %}LOW{% endif %}
-                        </span>
+                        <div style="display: inline-flex; align-items: center; gap: 0.4rem; background: var(--gray-50); border: 1px solid var(--gray-200); padding: 0.25rem 0.4rem; border-radius: 8px;">
+                            <span class="pin-chip {% if switch.state %}pin-high{% else %}pin-low{% endif %}" style="margin: 0;">
+                                GPIO {{ switch.switch_id }}: {% if switch.state %}HIGH{% else %}LOW{% endif %}
+                            </span>
+                            {% if live_device %}
+                            <form method="POST" action="{% url 'node_detail' node.name %}" style="margin: 0;">
+                                {% csrf_token %}
+                                <input type="hidden" name="command" value="{% if switch.state %}pin_off{% else %}pin_on{% endif %}">
+                                <input type="hidden" name="argument" value="{{ switch.switch_id }}">
+                                <button type="submit" class="ctrl-btn {% if switch.state %}ctrl-btn-red{% else %}ctrl-btn-green{% endif %}" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">
+                                    {% if switch.state %}wyłącz{% else %}włącz{% endif %}
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
                     {% endfor %}
                 </div>
             {% else %}
@@ -651,39 +659,6 @@
         {% endif %}
     </div>
 
-    <!-- API Info panel -->
-    <div class="ctrl-card" id="api-info-panel">
-        <h2>Informacje API węzła</h2>
-        <div class="ctrl-group">
-            <span class="ctrl-group-label">Piny GPIO</span>
-            <button
-                id="btn-get-pins"
-                class="ctrl-btn ctrl-btn-gray"
-                onclick="fetchApiInfo('pins', this)"
-            >📋 get_pins</button>
-            <code id="result-pins" class="api-result"></code>
-        </div>
-        <div class="ctrl-group">
-            <span class="ctrl-group-label">Format pomiarów</span>
-            <button
-                id="btn-get-format"
-                class="ctrl-btn ctrl-btn-gray"
-                onclick="fetchApiInfo('format', this)"
-            >📐 get_format</button>
-            <code id="result-format" class="api-result"></code>
-        </div>
-        <div class="ctrl-group">
-            <span class="ctrl-group-label">Kategoria czujnika</span>
-            <select class="ctrl-input" style="width: 200px;" onchange="setSensorKind(this)">
-                <option value="">-- nie wybrano --</option>
-                <option value="temperature" {% if node.sensor_kind == "temperature" %}selected{% endif %}>Temperatura (°C)</option>
-                <option value="humidity" {% if node.sensor_kind == "humidity" %}selected{% endif %}>Wilgotność (%)</option>
-                <option value="light" {% if node.sensor_kind == "light" %}selected{% endif %}>Natężenie światła (lux)</option>
-            </select>
-            <code id="result-sensor-kind" class="api-result"></code>
-        </div>
-    </div>
-
     <!-- Logs panel -->
     <div class="ctrl-card" id="logs-panel">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0;">
@@ -693,7 +668,7 @@
         
         <div id="logs-container" style="display: none; margin-top: 1rem; background: var(--gray-800); padding: 0.8rem; border-radius: 6px; border: 1px solid var(--gray-700); max-height: 300px; overflow-y: auto;">
             <ul id="logs-ul" style="list-style: none; margin: 0; padding: 0; font-family: monospace; font-size: 0.85rem;">
-                <li style="color: var(--gray-400);">Wczytywanie...</li>
+                <li style="color: black;">Wczytywanie...</li>
             </ul>
         </div>
     </div>

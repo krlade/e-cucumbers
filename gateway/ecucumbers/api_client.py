@@ -147,6 +147,69 @@ def register(pairing_token: str, device_id: str) -> dict:
     return result
 
 
+def send_telemetry(node_id: str, value: float):
+    """Wysyła pojedynczy odczyt z węzła (czujnika) do Central API."""
+    tokens = _load_tokens()
+    if not tokens:
+        return
+
+    access = tokens.get("access")
+    refresh = tokens.get("refresh")
+    if not access:
+        return
+
+    payload = {
+        "node_id": node_id,
+        "value": float(value),
+    }
+
+    try:
+        _post("/api/nodes/telemetry/", payload, token=access)
+        logger.info("[ApiClient] Pomyślnie wysłano telemetrię dla %s: %s", node_id, payload["value"])
+    except RuntimeError as e:
+        err_str = str(e)
+        if "401" in err_str:
+            new_access = _refresh_access_token(refresh)
+            if new_access:
+                tokens["access"] = new_access
+                _save_tokens(tokens)
+                try:
+                    _post("/api/nodes/telemetry/", payload, token=new_access)
+                    logger.info("[ApiClient] Pomyślnie wysłano telemetrię dla %s: %s (po refreshu)", node_id, payload["value"])
+                except Exception:
+                    logger.warning("[ApiClient] Błąd wysyłania telemetrii dla %s po odświeżeniu tokenu.", node_id)
+        elif "nie jest zarejestrowany" in err_str:
+            device_id = tokens.get("device_id")
+            if device_id:
+                try:
+                    from nodes.models import Node
+                    node = Node.objects.get(name=node_id)
+                    peripheral = {
+                        "node_id": node.name,
+                        "sensor_type": node.sensor_kind,
+                    }
+                    switch = node.switches.first()
+                    if switch:
+                        peripheral["gpio"] = switch.switch_id
+                        peripheral["peripheral_type"] = switch.switch_type
+
+                    reg_payload = {
+                        "device_id": device_id,
+                        "peripherals": [peripheral]
+                    }
+                    _post("/api/nodes/register-peripherals/", reg_payload, token=access)
+                    logger.info("[ApiClient] Pomyślnie zarejestrowano węzeł %s w API, ponawiam wysyłkę telemetrii.", node_id)
+                    
+                    # Ponawiamy telemetrię
+                    _post("/api/nodes/telemetry/", payload, token=access)
+                    logger.info("[ApiClient] Pomyślnie wysłano telemetrię dla %s: %s (po rejestracji)", node_id, payload["value"])
+                except Exception as ex:
+                    logger.warning("[ApiClient] Błąd automatycznej rejestracji węzła %s: %s", node_id, ex)
+            else:
+                logger.warning("[ApiClient] Brak device_id - nie można automatycznie zarejestrować węzła %s.", node_id)
+        else:
+            logger.warning("[ApiClient] Błąd wysyłania telemetrii dla %s: %s", node_id, err_str)
+
 # ---------------------------------------------------------------------------
 # Heartbeat + wykonanie komend
 # ---------------------------------------------------------------------------
