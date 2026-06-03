@@ -76,9 +76,11 @@ assert b["pending_count"] == 5
 assert len(b["commands"]) == 5
 # Sprawdz strukturę pierwszej komendy
 cmd = b["commands"][0]
-assert "node_id" in cmd and "gpio" in cmd and "command" in cmd and "peripheral_type" in cmd
+assert "node_id" in cmd and "gpio" in cmd and "command" in cmd
+assert "peripheral_type" not in cmd
+assert "time" not in cmd
 print(f"  Przykładowa komenda: node={cmd['node_id']} gpio={cmd['gpio']} "
-      f"type={cmd['peripheral_type']} cmd={cmd['command']} time={cmd['time']}")
+      f"cmd={cmd['command']}")
 print("  [PASS]")
 
 # ── 2. Kolejny heartbeat — brak pending (już dostarczone) ──

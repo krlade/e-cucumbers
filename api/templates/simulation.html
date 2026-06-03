@@ -241,17 +241,18 @@
         <!-- PERIPHERALS CARD -->
         <div class="sim-card">
             <h2 style="margin-bottom: 0;">
-                Węzły Końcowe (Peryferia)
+                Węzły Końcowe
                 <span id="sync-status" class="save-indicator" style="display: none;">
                     <span class="pulse-indicator pulse-active" style="background-color: var(--gray-500); margin:0;"></span>
-                    Zapisywanie...
+                    Sync...
                 </span>
                 <span id="sync-ok" class="save-indicator" style="color: var(--green-600);">
                     ✓ Zsynchronizowano
                 </span>
             </h2>
             <p style="font-size: 0.8rem; color: var(--gray-500); margin-bottom: 0.5rem;">
-                Każdy węzeł fizyczny (node_id) musi posiadać co najmniej czujnik lub pin GPIO z elementem sterowanym. Zmiany wysyłają automatyczny update na endpoint.
+                Gateway rejestruje węzły Pico. Węzeł z GPIO może sterować elementem wykonawczym.
+                Typ czujnika i etykietę konfiguruje użytkownik na <a href="{% url 'dashboard' %}" target="_blank">Dashboardzie</a>.
             </p>
 
             <!-- Lista węzłów -->
@@ -261,31 +262,22 @@
 
             <!-- Formularz dodawania węzła -->
             <div style="border-top: 1px solid var(--gray-200); padding-top: 0.75rem;">
-                <h4 style="font-size: 0.85rem; font-weight: 600; color: var(--gray-700); margin-bottom: 0.5rem;">Dodaj nowy węzeł</h4>
-                <div class="form-inline">
+                <h4 style="font-size: 0.85rem; font-weight: 600; color: var(--gray-700); margin-bottom: 0.5rem;">Dodaj węzeł Pico</h4>
+                <div class="form-inline" style="grid-template-columns: 1fr 1fr 1fr;">
                     <div class="form-group" style="margin: 0;">
                         <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">ID Węzła</label>
                         <input type="text" id="add-node-id" value="Pico_01" style="padding: 0.4rem; font-size: 0.8rem;">
                     </div>
                     <div class="form-group" style="margin: 0;">
-                        <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">GPIO (Sterowane)</label>
+                        <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">GPIO (opcjonalny)</label>
                         <input type="number" id="add-gpio" value="" placeholder="np. 1" min="0" max="40" style="padding: 0.4rem; font-size: 0.8rem;">
                     </div>
                     <div class="form-group" style="margin: 0;">
-                        <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">Typ Periferia</label>
+                        <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">Typ Periferia (opcjonalny)</label>
                         <select id="add-peripheral-type" style="width: 100%; padding: 0.4rem; font-size: 0.8rem; border-radius: var(--radius); border: 1px solid var(--gray-300);">
                             <option value="">Brak</option>
-                            <option value="LAMP">LAMP (Lampa)</option>
-                            <option value="SPRINKLER">SPRINKLER (Zraszacz)</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="margin: 0;">
-                        <label style="font-size: 0.75rem; margin-bottom: 0.15rem;">Typ Czujnika</label>
-                        <select id="add-sensor-type" style="width: 100%; padding: 0.4rem; font-size: 0.8rem; border-radius: var(--radius); border: 1px solid var(--gray-300);">
-                            <option value="">Brak</option>
-                            <option value="temperature">Temperatura (°C)</option>
-                            <option value="humidity">Wilgotność (%)</option>
-                            <option value="light">Światło (lux)</option>
+                            <option value="LAMP">LAMP</option>
+                            <option value="SPRINKLER">SPRINKLER</option>
                         </select>
                     </div>
                 </div>
@@ -335,11 +327,12 @@
                 <span id="telemetry-sync-lbl" style="font-size: 0.75rem; color: var(--gray-500);">Gotowy</span>
             </h2>
             <p style="font-size: 0.8rem; color: var(--gray-500); margin-bottom: 0.5rem;">
-                Dla każdego węzła z czujnikiem określ jak mają się zmieniać dane. Włącz automatyczną wysyłkę, aby aktualizować bazę danych.
+                Każdy węzeł Pico może nadawać surowe dane. Gateway przekazuje je bez modyfikacji — format: <code>{"data": wartość}</code>.
+                Typ czujnika rozpoznaje i konfiguruje użytkownik na Dashboardzie.
             </p>
 
             <div id="telemetry-sim-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                <!-- Telemetria renderowana dynamicznie na bazie peryferiów z czujnikiem -->
+                <!-- Telemetria renderowana dynamicznie dla wszystkich węzłów -->
             </div>
         </div>
     </div>
@@ -385,8 +378,9 @@
         refreshToken: '',
         owner: '',
         peripherals: [
-            { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP', sensor_type: 'temperature' },
-            { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER', sensor_type: 'humidity' }
+            { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP' },
+            { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER' },
+            { node_id: 'Pico_03', gpio: null, peripheral_type: null }
         ],
         heartbeatEnabled: false,
         heartbeatInterval: 5,
@@ -472,10 +466,13 @@
                 state = JSON.parse(raw);
                 if (!state.peripherals || state.peripherals.length === 0) {
                     state.peripherals = [
-                        { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP', sensor_type: 'temperature' },
-                        { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER', sensor_type: 'humidity' }
+                        { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP' },
+                        { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER' },
+                        { node_id: 'Pico_03', gpio: null, peripheral_type: null }
                     ];
                 }
+                // Usuń stary sensor_type z zapisanych węzłów (migracja)
+                state.peripherals = state.peripherals.map(p => ({ node_id: p.node_id, gpio: p.gpio || null, peripheral_type: p.peripheral_type || null }));
                 if (state.heartbeatEnabled === undefined) state.heartbeatEnabled = false;
                 if (state.heartbeatInterval === undefined) state.heartbeatInterval = 5;
                 if (state.telemetryStates === undefined) state.telemetryStates = {};
@@ -484,8 +481,9 @@
             }
         } else {
             state.peripherals = [
-                { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP', sensor_type: 'temperature' },
-                { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER', sensor_type: 'humidity' }
+                { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP' },
+                { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER' },
+                { node_id: 'Pico_03', gpio: null, peripheral_type: null }
             ];
             state.heartbeatEnabled = false;
             state.heartbeatInterval = 5;
@@ -685,8 +683,9 @@
             refreshToken: '',
             owner: '',
             peripherals: [
-                { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP', sensor_type: 'temperature' },
-                { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER', sensor_type: 'humidity' }
+                { node_id: 'Pico_01', gpio: 1, peripheral_type: 'LAMP' },
+                { node_id: 'Pico_02', gpio: 2, peripheral_type: 'SPRINKLER' },
+                { node_id: 'Pico_03', gpio: null, peripheral_type: null }
             ]
         };
         saveState();
@@ -712,8 +711,8 @@
             row.className = "node-row";
 
             let details = [];
-            if (n.peripheral_type) details.push(`Sterowanie: ${n.peripheral_type} (GPIO ${n.gpio})`);
-            if (n.sensor_type) details.push(`Czujnik: ${n.sensor_type}`);
+            if (n.peripheral_type && n.gpio !== null) details.push(`GPIO ${n.gpio} → ${n.peripheral_type}`);
+            else details.push('tylko telemetria');
 
             row.innerHTML = `
                 <div class="node-info">
@@ -744,18 +743,22 @@
     async function syncPeripheralsToServer() {
         if (!state.accessToken) return;
 
-        logSystem("Automatyczna synchronizacja peryferiów z serwerem...");
-        
-        // Przygotuj payload
-        // Serializer oczekuje: { device_id: string, peripherals: [ { node_id, gpio, peripheral_type, sensor_type } ] }
-        const payloadPeripherals = state.peripherals.map(p => {
-            return {
-                node_id: p.node_id,
-                gpio: p.gpio !== null && p.gpio !== "" ? parseInt(p.gpio) : null,
-                peripheral_type: p.peripheral_type || null,
-                sensor_type: p.sensor_type || null
-            };
-        });
+        // Synchronizuj tylko węzły z GPIO (sterowanie) — sensor_type gateway nie zna
+        const controllable = state.peripherals.filter(p => p.peripheral_type && p.gpio !== null && p.gpio !== "");
+        if (controllable.length === 0) {
+            document.getElementById("sync-status").style.display = "none";
+            document.getElementById("sync-ok").style.display = "inline";
+            renderTelemetryControls();
+            return;
+        }
+
+        logSystem("Synchronizacja węzłów sterowanych z serwerem...");
+
+        const payloadPeripherals = controllable.map(p => ({
+            node_id: p.node_id,
+            gpio: parseInt(p.gpio),
+            peripheral_type: p.peripheral_type
+        }));
 
         const res = await apiRequest("POST", "/api/nodes/register-peripherals/", {
             device_id: state.deviceId,
@@ -766,14 +769,11 @@
 
         if (res.ok) {
             document.getElementById("sync-ok").style.display = "inline";
-            logApi.ok(`Zsynchronizowano konfigurację! Zarejestrowano węzłów: ${res.data.registered_count}`);
-            
-            // Odśwież widok generatora telemetrii
+            logApi.ok(`Zsynchronizowano węzły sterowane: ${res.data.registered_count}`);
             renderTelemetryControls();
         } else {
-            logApi.err(`Błąd synchronizacji konfiguracji: ${JSON.stringify(res.data)}`);
+            logApi.err(`Błąd synchronizacji: ${JSON.stringify(res.data)}`);
             document.getElementById("sync-ok").style.display = "none";
-            alert("Błąd synchronizacji: " + JSON.stringify(res.data));
         }
     }
 
@@ -793,30 +793,20 @@
         const nodeId = document.getElementById("add-node-id").value.trim();
         const gpioVal = document.getElementById("add-gpio").value.trim();
         const peripheralType = document.getElementById("add-peripheral-type").value;
-        const sensorType = document.getElementById("add-sensor-type").value;
 
         if (!nodeId) {
             showNodeError("ID węzła jest wymagane!");
             return;
         }
 
-        const hasPeripheral = (gpioVal !== "" && peripheralType !== "");
-        const hasSensor = (sensorType !== "");
-
-        if (!hasPeripheral && !hasSensor) {
-            showNodeError("Węzeł musi mieć czujnik lub element sterowany (GPIO + Typ urządzenia)!");
-            return;
-        }
-
         if ((gpioVal !== "") !== (peripheralType !== "")) {
-            showNodeError("Aby dodać element sterowany, musisz podać ZARÓWNO numer pinu GPIO, jak i typ urządzenia.");
+            showNodeError("GPIO i typ urządzenia muszą być podane razem.");
             return;
         }
 
-        // Sprawdź czy nie ma duplikatu dla nazwy node_id (case-insensitive)
         const isDuplicate = state.peripherals.some(p => p.node_id.trim().toLowerCase() === nodeId.trim().toLowerCase());
         if (isDuplicate) {
-            showNodeError(`Węzeł o nazwie '${nodeId}' już istnieje! Każdy węzeł końcowy (node_id) musi mieć unikalną nazwę.`);
+            showNodeError(`Węzeł '${nodeId}' już istnieje.`);
             return;
         }
 
@@ -824,8 +814,7 @@
         state.peripherals.push({
             node_id: nodeId,
             gpio: gpioInt,
-            peripheral_type: peripheralType,
-            sensor_type: sensorType
+            peripheral_type: peripheralType || null
         });
 
         saveState();
@@ -835,8 +824,7 @@
 
     function removeNode(index) {
         const node = state.peripherals[index];
-        // Wyłącz timer telemetrii dla tego węzła jeśli istniał
-        const timerKey = `${node.node_id}_${node.sensor_type}`;
+        const timerKey = node.node_id;
         if (telemetryTimers[timerKey]) {
             clearInterval(telemetryTimers[timerKey]);
             delete telemetryTimers[timerKey];
@@ -852,21 +840,20 @@
     }
 
     // ── SIMULATING TELEMETRY ──
+    // Każdy węzeł Pico może nadawać surowe dane — gateway nie zna sensor_type
     function renderTelemetryControls() {
         const container = document.getElementById("telemetry-sim-list");
         container.innerHTML = "";
 
-        const nodesWithSensors = state.peripherals.filter(p => p.sensor_type);
-
-        if (nodesWithSensors.length === 0) {
+        if (state.peripherals.length === 0) {
             container.innerHTML = `<div style="text-align:center; padding: 1rem; color: var(--gray-500); font-size: 0.85rem;">
-                Brak czujników w konfiguracji. Dodaj węzeł z czujnikiem, aby symulować telemetrię.
+                Brak węzłów. Dodaj węzeł Pico, aby symulować telemetrię.
             </div>`;
             return;
         }
 
-        nodesWithSensors.forEach(n => {
-            const timerKey = `${n.node_id}_${n.sensor_type}`;
+        state.peripherals.forEach(n => {
+            const timerKey = n.node_id; // klucz = node_id (gateway nie zna sensor_type)
             const row = document.createElement("div");
             row.style.background = "var(--gray-50)";
             row.style.border = "1px solid var(--gray-200)";
@@ -876,17 +863,9 @@
             row.style.flexDirection = "column";
             row.style.gap = "0.5rem";
 
-            // Domyślne wartości dla różnych sensorów
-            let minVal = 0, maxVal = 100, step = 1, defaultVal = 20, unit = "";
-            if (n.sensor_type === "temperature") {
-                minVal = 10; maxVal = 45; step = 0.1; defaultVal = 24.5; unit = "°C";
-            } else if (n.sensor_type === "humidity") {
-                minVal = 20; maxVal = 99; step = 1; defaultVal = 65; unit = "%";
-            } else if (n.sensor_type === "light") {
-                minVal = 0; maxVal = 20000; step = 10; defaultVal = 5000; unit = "lux";
-            }
+            // Surowe dane — zakres ogólny, użytkownik sam wie co nadaje
+            const minVal = 0, maxVal = 100, step = 0.1, defaultVal = 23.5;
 
-            // Odczytaj stan z state lub nadaj domyślny
             if (!state.telemetryStates[timerKey]) {
                 state.telemetryStates[timerKey] = { isRunning: false, mode: 'manual', value: defaultVal };
             }
@@ -896,55 +875,49 @@
 
             const isRunning = !!telemetryTimers[timerKey];
             const btnText = isRunning ? "Stop" : "Start";
-            const btnBg = isRunning ? "var(--red-500)" : "#22c55e"; // vibrant green
+            const btnBg = isRunning ? "var(--red-500)" : "#22c55e";
 
             row.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-weight:600; font-size:0.85rem; color:var(--green-900);">${n.node_id} [${n.sensor_type}]</span>
-                    <span id="val-lbl-${timerKey}" style="font-family:monospace; font-weight:700; color:var(--green-700); font-size:0.9rem;">${currentVal} ${unit}</span>
+                    <span style="font-weight:600; font-size:0.85rem; color:var(--green-900);">${n.node_id}</span>
+                    <span id="val-lbl-${timerKey}" style="font-family:monospace; font-weight:700; color:var(--green-700); font-size:0.9rem;">
+                        {"data": <span id="val-num-${timerKey}">${currentVal.toFixed(1)}</span>}
+                    </span>
                 </div>
                 <div style="display:grid; grid-template-columns: 1fr auto; gap:0.5rem; align-items:center;">
                     <input type="range" id="val-slider-${timerKey}" min="${minVal}" max="${maxVal}" step="${step}" value="${currentVal}" 
-                        style="width:100%; accent-color:var(--green-600);" oninput="updateValLabel('${timerKey}', this.value, '${unit}')">
+                        style="width:100%; accent-color:var(--green-600);" oninput="updateValLabel('${timerKey}', this.value)">
                     <input type="number" id="val-input-${timerKey}" value="${currentVal}" step="${step}" style="width:70px; padding:0.25rem; font-size:0.8rem; text-align:right;"
-                        oninput="updateValSlider('${timerKey}', this.value, '${unit}')">
+                        oninput="updateValSlider('${timerKey}', this.value)">
                 </div>
                 <div class="form-inline" style="grid-template-columns: 1fr 1fr; gap:0.5rem; align-items:center;">
                     <select id="mode-${timerKey}" style="padding:0.25rem; font-size:0.75rem; border-radius:4px; border:1px solid var(--gray-300);" onchange="changeTelemMode('${timerKey}')">
-                        <option value="manual" ${currentMode === 'manual' ? 'selected' : ''}>Manualny (Suwak)</option>
+                        <option value="manual" ${currentMode === 'manual' ? 'selected' : ''}>Manualny</option>
                         <option value="random" ${currentMode === 'random' ? 'selected' : ''}>Losowy (Szum)</option>
-                        <option value="sine" ${currentMode === 'sine' ? 'selected' : ''}>Sinusoida (Autogrow)</option>
+                        <option value="sine" ${currentMode === 'sine' ? 'selected' : ''}>Sinusoida</option>
                     </select>
-                    <button id="btn-telem-${timerKey}" class="btn" style="padding:0.3rem 0.5rem; font-size:0.75rem; background:${btnBg};" onclick="toggleTelemetrySending('${n.node_id}', '${n.sensor_type}')">
+                    <button id="btn-telem-${timerKey}" class="btn" style="padding:0.3rem 0.5rem; font-size:0.75rem; background:${btnBg};" onclick="toggleTelemetrySending('${n.node_id}')">
                         ${btnText}
                     </button>
                 </div>
             `;
             container.appendChild(row);
-
-            // Inicjalizuj licznik czasu dla sinusoidy
-            sineTime[timerKey] = 0;
+            sineTime[timerKey] = sineTime[timerKey] || 0;
         });
     }
 
-    function updateValLabel(key, val, unit) {
-        document.getElementById(`val-lbl-${key}`).textContent = `${parseFloat(val).toFixed(1)} ${unit}`;
+    function updateValLabel(key, val) {
+        const numEl = document.getElementById(`val-num-${key}`);
+        if (numEl) numEl.textContent = parseFloat(val).toFixed(1);
         document.getElementById(`val-input-${key}`).value = val;
-
-        if (state.telemetryStates[key]) {
-            state.telemetryStates[key].value = parseFloat(val);
-            saveState();
-        }
+        if (state.telemetryStates[key]) { state.telemetryStates[key].value = parseFloat(val); saveState(); }
     }
 
-    function updateValSlider(key, val, unit) {
+    function updateValSlider(key, val) {
         document.getElementById(`val-slider-${key}`).value = val;
-        document.getElementById(`val-lbl-${key}`).textContent = `${parseFloat(val).toFixed(1)} ${unit}`;
-
-        if (state.telemetryStates[key]) {
-            state.telemetryStates[key].value = parseFloat(val);
-            saveState();
-        }
+        const numEl = document.getElementById(`val-num-${key}`);
+        if (numEl) numEl.textContent = parseFloat(val).toFixed(1);
+        if (state.telemetryStates[key]) { state.telemetryStates[key].value = parseFloat(val); saveState(); }
     }
 
     function changeTelemMode(key) {
@@ -957,120 +930,86 @@
         }
     }
 
-    function toggleTelemetrySending(nodeId, sensorType) {
-        const timerKey = `${nodeId}_${sensorType}`;
+    function toggleTelemetrySending(nodeId) {
+        const timerKey = nodeId;
         const btn = document.getElementById(`btn-telem-${timerKey}`);
 
         if (!state.telemetryStates[timerKey]) {
-            state.telemetryStates[timerKey] = { isRunning: false, mode: 'manual', value: 20 };
+            state.telemetryStates[timerKey] = { isRunning: false, mode: 'manual', value: 23.5 };
         }
 
         if (telemetryTimers[timerKey]) {
-            // Zatrzymaj wysyłanie
             clearInterval(telemetryTimers[timerKey]);
             delete telemetryTimers[timerKey];
             btn.textContent = "Start";
-            btn.style.background = "#22c55e"; // vibrant green
-            logTelemetry(`Zatrzymano wysyłanie telemetrii dla ${nodeId} [${sensorType}].`);
-
+            btn.style.background = "#22c55e";
+            logTelemetry(`Zatrzymano telemetrię dla ${nodeId}.`);
             state.telemetryStates[timerKey].isRunning = false;
             saveState();
         } else {
-            // Uruchom wysyłanie
             const freq = 5;
-            telemetryFrequencies[timerKey] = freq;
-
             btn.textContent = "Stop";
             btn.style.background = "var(--red-500)";
-            logTelemetry(`Uruchomiono wysyłanie telemetrii dla ${nodeId} [${sensorType}] co ${freq}s.`);
-
+            logTelemetry(`Uruchomiono telemetrię dla ${nodeId} co ${freq}s.`);
             state.telemetryStates[timerKey].isRunning = true;
             saveState();
-
-            // Natychmiastowa pierwsza wysyłka
-            sendTelemetryData(nodeId, sensorType);
-
-            // Cykliczne wysyłanie
-            telemetryTimers[timerKey] = setInterval(() => {
-                sendTelemetryData(nodeId, sensorType);
-            }, freq * 1000);
+            sendTelemetryData(nodeId);
+            telemetryTimers[timerKey] = setInterval(() => sendTelemetryData(nodeId), freq * 1000);
         }
     }
 
     function startActiveTelemetries() {
-        const nodesWithSensors = state.peripherals.filter(p => p.sensor_type);
-        nodesWithSensors.forEach(n => {
-            const timerKey = `${n.node_id}_${n.sensor_type}`;
+        state.peripherals.forEach(n => {
+            const timerKey = n.node_id;
             const tState = state.telemetryStates[timerKey];
             if (tState && tState.isRunning) {
-                const freq = 5;
-                telemetryFrequencies[timerKey] = freq;
-
-                if (telemetryTimers[timerKey]) {
-                    clearInterval(telemetryTimers[timerKey]);
-                }
-
-                telemetryTimers[timerKey] = setInterval(() => {
-                    sendTelemetryData(n.node_id, n.sensor_type);
-                }, freq * 1000);
-
-                logTelemetry(`Wznowiono automatyczne wysyłanie telemetrii dla ${n.node_id} [${n.sensor_type}] co ${freq}s.`);
+                if (telemetryTimers[timerKey]) clearInterval(telemetryTimers[timerKey]);
+                telemetryTimers[timerKey] = setInterval(() => sendTelemetryData(n.node_id), 5000);
+                logTelemetry(`Wznowiono telemetrię dla ${n.node_id} co 5s.`);
             }
         });
-
-        // Ponowne renderowanie kontrolek, aby przyciski miały poprawny napis i kolor na starcie
         renderTelemetryControls();
     }
 
-    async function sendTelemetryData(nodeId, sensorType) {
-        const timerKey = `${nodeId}_${sensorType}`;
+    async function sendTelemetryData(nodeId) {
+        const timerKey = nodeId;
         const slider = document.getElementById(`val-slider-${timerKey}`);
-        const mode = document.getElementById(`mode-${timerKey}`).value;
+        const modeEl = document.getElementById(`mode-${timerKey}`);
+        if (!slider || !modeEl) return;
+        const mode = modeEl.value;
 
         let val = parseFloat(slider.value);
 
         if (mode === "random") {
-            // Dodaj mały losowy szum
-            let noise = (Math.random() - 0.5) * (sensorType === "temperature" ? 0.4 : 2);
-            val = val + noise;
-            
-            // Clamp do min/max
-            const min = parseFloat(slider.min);
-            const max = parseFloat(slider.max);
-            val = Math.max(min, Math.min(max, val));
-
+            let noise = (Math.random() - 0.5) * 0.4;
+            val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val + noise));
             slider.value = val;
-            let unit = sensorType === "temperature" ? "°C" : (sensorType === "humidity" ? "%" : "lux");
-            updateValLabel(timerKey, val, unit);
+            updateValLabel(timerKey, val);
         } else if (mode === "sine") {
-            // Symulacja sinusoidy (np. dobowy cykl temperatury)
-            sineTime[timerKey] += 0.2; // krok czasu
+            sineTime[timerKey] += 0.2;
             const baseVal = (parseFloat(slider.min) + parseFloat(slider.max)) / 2;
             const amplitude = (parseFloat(slider.max) - parseFloat(slider.min)) / 4;
             val = baseVal + amplitude * Math.sin(sineTime[timerKey]);
-
             slider.value = val;
-            let unit = sensorType === "temperature" ? "°C" : (sensorType === "humidity" ? "%" : "lux");
-            updateValLabel(timerKey, val, unit);
+            updateValLabel(timerKey, val);
         }
 
         const valToSend = parseFloat(val.toFixed(2));
-        logTelemetry(`Wysyłanie: ${nodeId} [${sensorType}] = ${valToSend}`);
+        logTelemetry(`→ ${nodeId}: payload={"data":${valToSend}}`);
 
-        // POST /api/nodes/telemetry/
-        // Payload: { node_id, value }
+        // Relay format: surowy payload jak od Pico
         const res = await apiRequest("POST", "/api/nodes/telemetry/", {
             node_id: nodeId,
-            value: valToSend
+            payload: { data: valToSend }
         });
 
         if (res.ok) {
-            logTelemetry(`[OK] Odczyt zapisany pomyślnie. ID: ${res.data.id}`);
-            document.getElementById("telemetry-sync-lbl").textContent = "✓ Wysłano pomyślnie";
+            logTelemetry(`[OK] ID:${res.data.id} sensor_type:${res.data.sensor_type || '(nieskonf.)'}`);
+            document.getElementById("telemetry-sync-lbl").textContent = "✓ Wysłano";
             document.getElementById("telemetry-sync-lbl").style.color = "var(--green-600)";
         } else {
-            logApi.err(`Błąd wysyłania telemetrii: ${JSON.stringify(res.data)}`);
-            document.getElementById("telemetry-sync-lbl").textContent = "✗ Błąd wysyłania";
+            logApi.err(`Błąd telemetrii: ${JSON.stringify(res.data)}`);
+            document.getElementById("telemetry-sync-lbl").textContent = "✗ Błąd";
             document.getElementById("telemetry-sync-lbl").style.color = "var(--red-500)";
         }
     }
@@ -1150,16 +1089,12 @@
 
             if (count > 0 && res.data.commands) {
                 res.data.commands.forEach(cmd => {
-                    const params = cmd.time ? ` na czas ${cmd.time} min` : "";
-                    logCommand(`[KOMENDA] Otrzymano: węzeł ${cmd.node_id} (GPIO ${cmd.gpio}) -> ${cmd.command}${params}`);
-                    
-                    // Zmień fizyczny stan stacji
+                    // Gateway widzi tylko TURN_ON / TURN_OFF
+                    logCommand(`[CMD] ${cmd.node_id} GPIO${cmd.gpio} → ${cmd.command}`);
                     executeCommandOnSimulator(cmd);
-
-                    // Zasymuluj fizyczne wykonanie komendy w logach stacji
                     setTimeout(() => {
-                        logCommand(`[STACJA FIZYCZNA] Pico na pinie GPIO ${cmd.gpio} wykonuje: ${cmd.command}${params} [OK]`);
-                    }, 500);
+                        logCommand(`[GPIO] pin ${cmd.gpio} ustawiony: ${cmd.command === 'TURN_ON' ? 'HIGH' : 'LOW'} ✓`);
+                    }, 300);
                 });
             }
         } else {
@@ -1168,7 +1103,7 @@
     }
 
     // ── INTERAKTYWNA SYMULACJA STANU WYKONAWCZEGO ──
-    const peripheralStates = {}; // key: node_id_gpio -> { state: 'OFF'|'ON', timer: null, timeRemaining: 0 }
+    const peripheralStates = {}; // key: node_id_gpio -> { state: 'OFF'|'ON' }
 
     function renderDeviceStates() {
         const container = document.getElementById("device-states-list");
@@ -1204,10 +1139,7 @@
             const ledColor = curState === "ON" ? activeColor : "var(--gray-300)";
             const ledShadow = curState === "ON" ? `0 0 8px ${activeColor}` : "none";
             
-            const timeRemaining = peripheralStates[key] ? peripheralStates[key].timeRemaining : 0;
-            const textVal = curState === "ON" 
-                ? (timeRemaining > 0 ? `WŁĄCZONY (Pozostało: ${formatDuration(timeRemaining)})` : "WŁĄCZONY") 
-                : "WYŁĄCZONY";
+            const textVal = curState === "ON" ? "WŁĄCZONY" : "WYŁĄCZONY";
             const textColor = curState === "ON" ? activeTextColor : "var(--gray-500)";
 
             row.innerHTML = `
@@ -1241,7 +1173,7 @@
             for (let key in latestDelivered) {
                 executeCommandOnSimulator(latestDelivered[key]);
             }
-            logSystem.ok("Stan urządzeń i timery czasowe przywrócone pomyślnie.");
+            logSystem.ok("Stan urządzeń przywrócony pomyślnie.");
         } else {
             logApi.err("Nie udało się pobrać historii komend do przywrócenia stanu.");
         }
@@ -1253,65 +1185,25 @@
         const text = document.getElementById(`state-val-${key}`);
         if (!led || !text) return;
 
-        // Anuluj poprzedni timer
-        if (peripheralStates[key] && peripheralStates[key].timer) {
-            clearInterval(peripheralStates[key].timer);
-            peripheralStates[key].timer = null;
-        }
-
         if (cmd.command === "TURN_ON" || cmd.command === "TURN_ON_FOR" || cmd.command === "WATER_PUMP_ON") {
-            const isLamp = cmd.peripheral_type === "LAMP" || cmd.command.startsWith("TURN_");
+            const localPeripheral = state.peripherals.find(p => p.node_id === cmd.node_id && p.gpio === cmd.gpio);
+            const peripheralType = localPeripheral ? localPeripheral.peripheral_type : (cmd.peripheral_type || "LAMP");
+            const isLamp = peripheralType === "LAMP";
             const activeColor = isLamp ? "var(--green-500)" : "#2563eb";
             const activeTextColor = isLamp ? "var(--green-600)" : "#1d4ed8";
 
             led.style.backgroundColor = activeColor;
             led.style.boxShadow = `0 0 8px ${activeColor}`;
             
-            if (cmd.command === "TURN_ON") {
-                text.textContent = "WŁĄCZONY";
-                text.style.color = "var(--green-600)";
-                peripheralStates[key] = { state: "ON", timer: null, timeRemaining: 0 };
-            } else {
-                let deliveredTime = cmd.delivered_at ? new Date(cmd.delivered_at).getTime() : getSyncedNow();
-                let endTime = deliveredTime + cmd.time * 60 * 1000;
-                let secondsRemaining = Math.floor((endTime - getSyncedNow()) / 1000);
-
-                if (secondsRemaining <= 0) {
-                    led.style.backgroundColor = "var(--gray-300)";
-                    led.style.boxShadow = "none";
-                    text.textContent = "WYŁĄCZONY";
-                    text.style.color = "var(--gray-500)";
-                    peripheralStates[key] = { state: "OFF", timer: null, timeRemaining: 0 };
-                    return;
-                }
-
-                text.textContent = `WŁĄCZONY (Pozostało: ${formatDuration(secondsRemaining)})`;
-                text.style.color = activeTextColor;
-                
-                const interval = setInterval(() => {
-                    secondsRemaining--;
-                    if (secondsRemaining <= 0) {
-                        clearInterval(interval);
-                        peripheralStates[key].timer = null;
-                        
-                        led.style.backgroundColor = "var(--gray-300)";
-                        led.style.boxShadow = "none";
-                        text.textContent = "WYŁĄCZONY";
-                        text.style.color = "var(--gray-500)";
-                        logCommand(`[STACJA FIZYCZNA] Pico ${cmd.node_id} (pin ${cmd.gpio}) zakończył wykonywanie komendy czasowej.`);
-                    } else {
-                        text.textContent = `WŁĄCZONY (Pozostało: ${formatDuration(secondsRemaining)})`;
-                    }
-                }, 1000);
-                
-                peripheralStates[key] = { state: "ON", timer: interval, timeRemaining: secondsRemaining };
-            }
+            text.textContent = "WŁĄCZONY";
+            text.style.color = activeTextColor;
+            peripheralStates[key] = { state: "ON" };
         } else if (cmd.command === "TURN_OFF") {
             led.style.backgroundColor = "var(--gray-300)";
             led.style.boxShadow = "none";
             text.textContent = "WYŁĄCZONY";
             text.style.color = "var(--gray-500)";
-            peripheralStates[key] = { state: "OFF", timer: null, timeRemaining: 0 };
+            peripheralStates[key] = { state: "OFF" };
         }
     }
 

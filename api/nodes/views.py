@@ -7,6 +7,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CentralUnit, ControllableNode, DeviceOwnership, PairingToken, QueuedCommand, TelemetryReading
 from .serializers import (
+    DeviceListSerializer,
+    NodeConfigSerializer,
     PeripheralSerializer,
     PairingTokenResponseSerializer,
     QueuedCommandSerializer,
@@ -28,7 +30,12 @@ class CreatePairingTokenView(APIView):
 
 
 class RegisterDeviceView(APIView):
-    """POST /api/nodes/register-device/"""
+    """POST /api/nodes/register-device/ — rejestracja lub ponowna rejestracja gateway.
+
+    Jeśli gateway z tym samym device_id już istnieje i właściciel jest adminem
+    → wydaje nowe tokeny JWT dla istniejącego konta urządzenia.
+    Stare dane telemetryczne i komendy zostają zachowane (ciągłość).
+    """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -62,7 +69,7 @@ class RegisterDeviceView(APIView):
             device_user.set_unusable_password()
             device_user.is_active = True
             device_user.save()
-            
+
         unit = CentralUnit.objects.create(device_id=device_id, device_user=device_user)
         DeviceOwnership.objects.create(user=owner, device=unit, role=DeviceOwnership.ROLE_ADMIN)
         pairing_token.delete()
@@ -101,9 +108,12 @@ class RegisterDeviceView(APIView):
         return Response({"detail": "Device unregistered and deleted successfully."}, status=status.HTTP_200_OK)
 
 
-
 class RegisterPeripheralsView(APIView):
-    """POST /api/nodes/register-peripherals/ — gateway rejestruje peryferia (wymaga JWT urządzenia)."""
+    """POST /api/nodes/register-peripherals/ — gateway rejestruje peryferia (wymaga JWT urządzenia).
+
+    Endpoint zachowany dla kompatybilności wstecznej i symulatora.
+    Operacja idempotentna (upsert).
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -164,14 +174,63 @@ class ListPeripheralsView(APIView):
         })
 
 
-class SendCommandView(APIView):
-    """POST /api/nodes/command/ — użytkownik wysyła komendę do peryferiów.
+class NodeConfigView(APIView):
+    """POST /api/nodes/node-config/ — użytkownik konfiguruje węzeł (etykieta, typ czujnika, gpio).
 
-    Waliduje:
-    - czy peripheral (device_id + node_id + gpio) istnieje
-    - czy komenda jest ze zbioru legalnych komend dla danego peripheral_type
-    - czy parametr czasu jest podany gdy wymagany (i pominięty gdy nie wymagany)
-    - czy użytkownik ma dostęp do urządzenia (DeviceOwnership)
+    Umożliwia skonfigurowanie węzła po tym jak dane zaczną napływać.
+    Tworzy lub aktualizuje rekord ControllableNode (upsert).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = NodeConfigSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        device_id = serializer.validated_data["device_id"]
+        node_id = serializer.validated_data["node_id"]
+
+        try:
+            gateway = CentralUnit.objects.get(device_id=device_id)
+        except CentralUnit.DoesNotExist:
+            return Response({"detail": "Device not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not DeviceOwnership.objects.filter(
+            user=request.user, device=gateway, role=DeviceOwnership.ROLE_ADMIN
+        ).exists():
+            return Response({"detail": "Access denied. Admin role required."}, status=status.HTTP_403_FORBIDDEN)
+
+        defaults = {}
+        if "label" in serializer.validated_data:
+            defaults["label"] = serializer.validated_data["label"]
+        if "sensor_type" in serializer.validated_data:
+            defaults["sensor_type"] = serializer.validated_data["sensor_type"]
+        if "gpio" in serializer.validated_data:
+            defaults["gpio"] = serializer.validated_data["gpio"]
+        if "peripheral_type" in serializer.validated_data:
+            defaults["peripheral_type"] = serializer.validated_data["peripheral_type"]
+
+        node, created = ControllableNode.objects.update_or_create(
+            gateway=gateway,
+            node_id=node_id,
+            defaults=defaults,
+        )
+
+        # Aktualizuj sensor_type w historycznych odczytach telemetrii (jeśli podano)
+        if "sensor_type" in serializer.validated_data and serializer.validated_data["sensor_type"]:
+            TelemetryReading.objects.filter(
+                gateway=gateway,
+                node_id=node_id,
+                sensor_type__isnull=True,
+            ).update(sensor_type=serializer.validated_data["sensor_type"])
+
+        return Response(PeripheralSerializer(node).data, status=status.HTTP_200_OK)
+
+
+class SendCommandView(APIView):
+    """POST /api/nodes/command/ — użytkownik wysyła komendę do węzła Pico przez gateway.
+
+    Format KISS: device_id + node_id + gpio + command (+ opcjonalny czas w minutach).
+    Nie wymaga pre-rejestracji węzła.
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -179,15 +238,16 @@ class SendCommandView(APIView):
         serializer = SendCommandSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        peripheral = serializer.validated_data["_peripheral"]
-        gateway = peripheral.gateway
+        gateway = serializer.validated_data["_gateway"]
 
         # Sprawdź dostęp użytkownika do gatewaya
         if not DeviceOwnership.objects.filter(user=request.user, device=gateway).exists():
             return Response({"detail": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
         cmd = QueuedCommand.objects.create(
-            peripheral=peripheral,
+            gateway=gateway,
+            node_id=serializer.validated_data["node_id"],
+            gpio=serializer.validated_data["gpio"],
             issued_by=request.user,
             command=serializer.validated_data["_cmd_name"],
             time=serializer.validated_data["_time"],
@@ -216,7 +276,7 @@ class SendCommandView(APIView):
         except ValueError:
             limit = 20
 
-        commands = QueuedCommand.objects.filter(peripheral__gateway=gateway).order_by("-created_at")[:limit]
+        commands = QueuedCommand.objects.filter(gateway=gateway).order_by("-created_at")[:limit]
         return Response(QueuedCommandSerializer(commands, many=True).data)
 
 
@@ -226,6 +286,8 @@ class HeartbeatView(APIView):
     Wymaga JWT urządzenia (device_user). Żadnego payloadu — tożsamość gatewaya
     wynika z tokenu JWT. Zwraca wszystkie komendy ze statusem 'pending'
     i atomicznie oznacza je jako 'delivered'.
+
+    Zapisuje czas heartbeatu — używany do statusu Online/Offline.
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -239,42 +301,61 @@ class HeartbeatView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Zapisz czas heartbeatu (Online/Offline)
+        gateway.last_heartbeat = timezone.now()
+        gateway.save(update_fields=["last_heartbeat"])
+
         # Pobierz wszystkie pending komendy dla tego gatewaya
         pending = QueuedCommand.objects.filter(
-            peripheral__gateway=gateway,
+            gateway=gateway,
             status=QueuedCommand.STATUS_PENDING,
-        ).select_related("peripheral")
+        )
 
         commands = list(pending)  # Zmaterializuj przed aktualizacją
 
-        # Atomiocznie oznacz jako dostarczone
+        # Atomicznie oznacz jako dostarczone
         now = timezone.now()
         pending.update(status=QueuedCommand.STATUS_DELIVERED, delivered_at=now)
+
+        # Uproszczony format dla Gateway: TURN_ON / TURN_OFF + node_id + gpio
+        gateway_commands = []
         for cmd in commands:
-            cmd.status = QueuedCommand.STATUS_DELIVERED
-            cmd.delivered_at = now
+            # Komendy czasowe są zredukowane do prostego TURN_ON — Gateway nie zarządza czasem
+            simple_cmd = "TURN_ON" if cmd.command in ["TURN_ON", "TURN_ON_FOR", "WATER_PUMP_ON"] else "TURN_OFF"
+            gateway_commands.append({
+                "id": cmd.id,
+                "node_id": cmd.node_id,
+                "gpio": cmd.gpio,
+                "command": simple_cmd,
+            })
 
         return Response(
             {
                 "device_id": gateway.device_id,
-                "pending_count": len(commands),
-                "commands": QueuedCommandSerializer(commands, many=True).data,
+                "pending_count": len(gateway_commands),
+                "commands": gateway_commands,
             },
             status=status.HTTP_200_OK,
         )
 
 
 class TelemetryView(APIView):
-    """POST /api/nodes/telemetry/ — gateway wysyla odczyt z czujnika.
+    """POST /api/nodes/telemetry/ — gateway przesyła surowy odczyt z węzła Pico.
 
-    Wymaga JWT urzadzenia. Kazdy wezel (Pico) ma dokladnie 1 czujnik.
-    node_id + JWT (gateway) jednoznacznie identyfikuja zrodlo odczytu.
-    Brak pre-rejestracji sensorow — przyjmujemy dane z kazdego node_id.
+    Gateway przekazuje payload 1:1 tak jak dostał od węzła.
+    Węzeł Pico wysyła: {"data": 23.5}
+    Gateway przesyła: {"node_id": "Pico_01", "payload": {"data": 23.5}}
+
+    sensor_type jest pobierany z konfiguracji węzła (ControllableNode), jeśli węzeł
+    jest skonfigurowany przez użytkownika. W przeciwnym razie odczyt jest zapisywany
+    bez typu czujnika — użytkownik może skonfigurować go później przez /node-config/.
+
+    Nie wymaga pre-rejestracji węzła.
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        # JWT musi nalezec do device_user
+        # JWT musi należeć do device_user
         try:
             gateway = CentralUnit.objects.get(device_user=request.user)
         except CentralUnit.DoesNotExist:
@@ -287,26 +368,31 @@ class TelemetryView(APIView):
         serializer.is_valid(raise_exception=True)
 
         node_id = serializer.validated_data["node_id"]
+        raw_payload = serializer.validated_data["payload"]
 
+        # Wyekstrahuj wartość liczbową z payloadu (klucz "data" zgodnie z protokołem Pico)
+        value = None
+        raw_val = raw_payload.get("data")
+        if raw_val is not None:
+            try:
+                value = float(raw_val)
+            except (ValueError, TypeError):
+                pass
+
+        # Pobierz sensor_type z konfiguracji węzła (jeśli skonfigurowany przez użytkownika)
+        sensor_type = None
         try:
-            node = ControllableNode.objects.get(gateway=gateway, node_id=node_id)
+            node_config = ControllableNode.objects.get(gateway=gateway, node_id=node_id)
+            sensor_type = node_config.sensor_type
         except ControllableNode.DoesNotExist:
-            return Response(
-                {"detail": f"Węzeł '{node_id}' nie jest zarejestrowany w tym gateway."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not node.sensor_type:
-            return Response(
-                {"detail": f"Węzeł '{node_id}' nie ma zarejestrowanego czujnika."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            pass
 
         reading = TelemetryReading.objects.create(
             gateway=gateway,
             node_id=node_id,
-            sensor_type=node.sensor_type,
-            value=serializer.validated_data["value"],
+            raw_payload=raw_payload,
+            value=value,
+            sensor_type=sensor_type,
         )
 
         return Response(
@@ -330,6 +416,7 @@ class TelemetryView(APIView):
             return Response({"detail": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
         sensor_type = request.query_params.get("sensor_type")
+        node_id = request.query_params.get("node_id")
         limit = request.query_params.get("limit", 50)
         try:
             limit = int(limit)
@@ -339,15 +426,18 @@ class TelemetryView(APIView):
         readings = TelemetryReading.objects.filter(gateway=gateway)
         if sensor_type:
             readings = readings.filter(sensor_type=sensor_type)
+        if node_id:
+            readings = readings.filter(node_id=node_id)
 
         readings = readings.order_by("-recorded_at")[:limit]
-        # Return in ascending order of recorded_at for easier charting
+        # Zwróć w porządku rosnącym (ASC) — gotowe do wykresów
         readings_list = list(readings)[::-1]
 
         return Response(TelemetryReadingSerializer(readings_list, many=True).data)
 
 
 class ListDevicesView(APIView):
+    """GET /api/nodes/user-devices/ — lista gateway'ów użytkownika z statusem Online/Offline."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
@@ -357,7 +447,8 @@ class ListDevicesView(APIView):
             devices_list.append({
                 "device_id": o.device.device_id,
                 "role": o.role,
-                "registered_at": o.device.registered_at.isoformat()
+                "registered_at": o.device.registered_at.isoformat(),
+                "last_heartbeat": o.device.last_heartbeat.isoformat() if o.device.last_heartbeat else None,
+                "is_online": o.device.is_online,
             })
         return Response(devices_list)
-

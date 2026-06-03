@@ -1,6 +1,10 @@
 """
 Command endpoint verification: command validation, queuing, access control.
 
+New architecture: commands are sent directly by node_id + gpio,
+no pre-registration of ControllableNode required.
+All 4 commands (TURN_ON, TURN_OFF, TURN_ON_FOR, WATER_PUMP_ON) are valid for any gpio.
+
 Usage:
     1. python manage.py flush --no-input
     2. python manage.py runserver   (osobny terminal)
@@ -43,20 +47,10 @@ s, b = req("POST", "/api/nodes/register-device/",
            {"device_id": "2137", "pairing_token": b["token"]})
 assert s == 200
 device_access = b["access"]
-
-# Rejestracja peryferiów: lampa GPIO1, zraszacz GPIO2
-s, b = req("POST", "/api/nodes/register-peripherals/", {
-    "device_id": "2137",
-    "peripherals": [
-        {"node_id": "Pico_01", "gpio": 1, "peripheral_type": "LAMP"},
-        {"node_id": "Pico_02", "gpio": 2, "peripheral_type": "SPRINKLER"},
-    ],
-}, token=device_access)
-assert s == 200, f"Register peripherals failed: {b}"
-print("  [OK]\n")
+print("  [OK] — brak potrzeby rejestracji peryferow!\n")
 
 # ── 1. TURN_OFF (bez parametru) ──
-print("=== 1. TURN_OFF on lamp ===")
+print("=== 1. TURN_OFF on Pico_01 GPIO1 ===")
 s, b = req("POST", "/api/nodes/command/", {
     "device_id": "2137", "node_id": "Pico_01", "gpio": 1,
     "command": ["TURN_OFF"]
@@ -66,10 +60,13 @@ assert s == 201, f"Expected 201, got {s}: {b}"
 assert b["command"] == "TURN_OFF"
 assert b["time"] is None
 assert b["status"] == "pending"
+# human_description sprawdzamy też
+assert "human_description" in b
+assert b["human_description"] == "Wyłączono"
 print("  [PASS]")
 
-# ── 2. TURN_ON_FOR z parametrem czasu (godziny) ──
-print("\n=== 2. TURN_ON_FOR lamp with time ===")
+# ── 2. TURN_ON_FOR z parametrem czasu ──
+print("\n=== 2. TURN_ON_FOR with time ===")
 s, b = req("POST", "/api/nodes/command/", {
     "device_id": "2137", "node_id": "Pico_01", "gpio": 1,
     "command": ["TURN_ON_FOR", 8]
@@ -78,10 +75,11 @@ print(f"  Status: {s}, command: {b.get('command')}, time: {b.get('time')}")
 assert s == 201
 assert b["command"] == "TURN_ON_FOR"
 assert b["time"] == 8
+assert b["human_description"] == "Włączono na 8 min"
 print("  [PASS]")
 
-# ── 3. WATER_PUMP_ON z parametrem czasu (minuty) ──
-print("\n=== 3. WATER_PUMP_ON sprinkler with time ===")
+# ── 3. WATER_PUMP_ON z parametrem czasu ──
+print("\n=== 3. WATER_PUMP_ON on any GPIO (no pre-registration required) ===")
 s, b = req("POST", "/api/nodes/command/", {
     "device_id": "2137", "node_id": "Pico_02", "gpio": 2,
     "command": ["WATER_PUMP_ON", 45]
@@ -90,13 +88,14 @@ print(f"  Status: {s}, command: {b.get('command')}, time: {b.get('time')}")
 assert s == 201
 assert b["command"] == "WATER_PUMP_ON"
 assert b["time"] == 45
+assert b["human_description"] == "Nawadnianie przez 45 min"
 print("  [PASS]")
 
-# ── 4. Nielegalna komenda dla danego typu ──
-print("\n=== 4. Illegal command for peripheral type ===")
+# ── 4. Nielegalna nazwa komendy ──
+print("\n=== 4. Invalid command name ===")
 s, b = req("POST", "/api/nodes/command/", {
-    "device_id": "2137", "node_id": "Pico_02", "gpio": 2,
-    "command": ["TURN_OFF"]  # TURN_OFF jest dla LAMP, nie SPRINKLER
+    "device_id": "2137", "node_id": "Pico_01", "gpio": 1,
+    "command": ["INVALID_CMD"]
 }, token=jan_access)
 print(f"  Status: {s}")
 assert s == 400, f"Expected 400, got {s}: {b}"
@@ -122,14 +121,14 @@ print(f"  Status: {s}")
 assert s == 400
 print("  [PASS]")
 
-# ── 7. Nieistniejący GPIO ──
-print("\n=== 7. Non-existent GPIO ===")
+# ── 7. GPIO powyżej max (40) ──
+print("\n=== 7. GPIO value exceeds max (40) ===")
 s, b = req("POST", "/api/nodes/command/", {
     "device_id": "2137", "node_id": "Pico_01", "gpio": 99,
     "command": ["TURN_ON"]
 }, token=jan_access)
 print(f"  Status: {s}")
-assert s == 400
+assert s == 400, f"Expected 400, got {s}: {b}"
 print("  [PASS]")
 
 # ── 8. Brak dostępu (inny użytkownik) ──
@@ -156,4 +155,16 @@ print(f"  Status: {s}")
 assert s in (401, 403)
 print("  [PASS]")
 
-print("\n✅ All 9 command tests passed!")
+# ── 10. Heartbeat odbiera komendy + zapisuje last_heartbeat ──
+print("\n=== 10. Heartbeat receives queued commands ===")
+s, b = req("POST", "/api/nodes/heartbeat/", token=device_access)
+assert s == 200, f"Heartbeat failed: {b}"
+print(f"  device_id: {b.get('device_id')}, pending_count: {b.get('pending_count')}")
+# Powinny być co najmniej te 4 komendy zakolejkowane
+assert b.get("pending_count", 0) == 3, f"Expected 3 commands (from tests 1,2,3), got {b.get('pending_count')}"
+# Sprawdź format komendy
+for cmd in b.get("commands", []):
+    assert cmd["command"] in ["TURN_ON", "TURN_OFF"], f"Unexpected command in heartbeat: {cmd['command']}"
+print("  [PASS]")
+
+print("\n[SUCCESS] All 10 command tests passed!")

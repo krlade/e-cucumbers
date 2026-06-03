@@ -6,6 +6,7 @@ urlpatterns = [
     path("register-device/", views.RegisterDeviceView.as_view(), name="register-device"),
     path("register-peripherals/", views.RegisterPeripheralsView.as_view(), name="register-peripherals"),
     path("peripherals/", views.ListPeripheralsView.as_view(), name="list-peripherals"),
+    path("node-config/", views.NodeConfigView.as_view(), name="node-config"),
     path("command/", views.SendCommandView.as_view(), name="send-command"),
     path("heartbeat/", views.HeartbeatView.as_view(), name="heartbeat"),
     path("telemetry/", views.TelemetryView.as_view(), name="telemetry"),
