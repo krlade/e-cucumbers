@@ -54,11 +54,11 @@ class CentralUnit(models.Model):
         help_text="Czas ostatniego heartbeatu od Gateway.",
     )
 
-    ONLINE_THRESHOLD = timedelta(minutes=5)
+    ONLINE_THRESHOLD = timedelta(seconds=30)
 
     @property
     def is_online(self) -> bool:
-        """True jeśli ostatni heartbeat był nie dalej niż 5 minut temu."""
+        """True jeśli ostatni heartbeat był nie dalej niż 30 sekund temu."""
         if not self.last_heartbeat:
             return False
         return (timezone.now() - self.last_heartbeat) < self.ONLINE_THRESHOLD

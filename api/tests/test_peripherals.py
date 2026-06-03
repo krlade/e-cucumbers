@@ -76,7 +76,7 @@ assert set(lamp_cmds) == {"TURN_ON", "TURN_OFF", "TURN_ON_FOR"}, f"Lamp commands
 print(f"  Lampa komendy: {lamp_cmds}")
 
 spr_cmds = [c["name"] for c in sprinklers[0]["allowed_commands"]]
-assert spr_cmds == ["WATER_PUMP_ON"], f"Sprinkler commands wrong: {spr_cmds}"
+assert set(spr_cmds) == {"WATER_PUMP_ON", "TURN_OFF"}, f"Sprinkler commands wrong: {spr_cmds}"
 print(f"  Zraszacz komendy: {spr_cmds}")
 print("  [PASS]")
 

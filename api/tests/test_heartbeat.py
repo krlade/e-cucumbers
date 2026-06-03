@@ -119,4 +119,4 @@ print(f"  Status: {s}")
 assert s in (401, 403)
 print("  [PASS]")
 
-print("\n✅ All 5 heartbeat tests passed!")
+print("\n[SUCCESS] All 5 heartbeat tests passed!")
