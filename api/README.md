@@ -55,7 +55,7 @@ Minimalny monolit Django: widoki HTML (szablony) + JSON API.
 - `PairingToken` — token parowania `TEMP-XXXX`, ważny 15 min
 - `CentralUnit` — zarejestrowany Gateway z JWT (`device_user`) i polem `last_heartbeat`
 - `DeviceOwnership` — relacja użytkownik ↔ gateway, role: `admin` / `viewer`
-- `ControllableNode` — opcjonalna konfiguracja węzła nadana przez użytkownika (etykieta, `sensor_type`, `gpio`)
+- `ControllableNode` — opcjonalna konfiguracja węzła nadana przez użytkownika (etykieta, `sensor_type`, `gpio`, `is_active` - przechowujący aktualny stan włączenia urządzenia)
 - `QueuedCommand` — kolejka komend powiązana z `CentralUnit` + `node_id` + `gpio`; statusy: `pending` / `delivered`
 - `TelemetryReading` — surowe dane z węzłów; `raw_payload` = oryginalny JSON od Pico
 
@@ -115,6 +115,7 @@ Inne widoki:
 | `POST` | `/api/nodes/node-config/` | ✅ user | Konfiguruje węzeł z Dashboardu. Payload: `{device_id, node_id, sensor_type, label}` |
 | `GET` | `/api/nodes/peripherals/?device_id=` | ✅ user/device | Lista węzłów z konfiguracją (używane przez panel sterowania) |
 | `GET` | `/api/nodes/user-devices/` | ✅ user | Wszystkie gateway'e użytkownika z rolą i statusem online |
+| `GET` | `/api/nodes/status-summary/` | ❌ | Publiczny snapshot całego systemu dla Discord webhooka (statusy stacji, odczyty i stan urządzeń) |
 
 #### Walidacja komend
 
@@ -278,4 +279,4 @@ Brak tokenów? → Czekaj na TEMP-XXXX → POST /register-device/
 
 ## 7. Schemat bazy danych
 
-![Schemat bazy danych](db-schema-visualization.png)
+![Schemat bazy danych (być może trochę nieaktualny)](db-schema-visualization.png)
