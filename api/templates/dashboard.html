@@ -602,11 +602,11 @@
                     <div id="no-sensors-msg-{{ d.unit.device_id }}" style="display:none;grid-column:span 2;text-align:center;color:var(--gray-400);font-size:0.85rem;padding:1.5rem;border:1px dashed var(--gray-300);border-radius:var(--radius);">Brak danych z czujnikow. Gdy wezel Pico zacznie nadawac, pojawi sie tutaj.</div>
                 </div>
 
-                <!-- PANEL STEROWANIA -->
                 <div style="background:transparent;border:none;padding:0;margin-bottom:1.5rem;">
                     <h3 style="font-size:0.95rem;font-weight:700;color:var(--green-900);margin-bottom:0.75rem;border-bottom:2px solid var(--green-100);padding-bottom:0.5rem;">Panel Sterowania</h3>
+                    <div id="controls-container-{{ d.unit.device_id }}">
                     {% for p in d.peripherals %}{% if p.peripheral_type %}
-                    <div class="control-card">
+                    <div class="control-card" id="control-card-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}">
                         <div class="control-card-header">
                             <div class="control-card-title">
                                 {% if p.peripheral_type == 'LAMP' %}<svg style="width:16px;height:16px;fill:var(--green-700);" viewBox="0 0 24 24"><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></svg>{% else %}<svg style="width:16px;height:16px;fill:#3b82f6;" viewBox="0 0 24 24"><path d="M12,20A6,6 0 0,1 6,14C6,10 12,3.25 12,3.25C12,3.25 18,10 18,14A6,6 0 0,1 12,20Z"/></svg>{% endif %}
@@ -639,8 +639,9 @@
                         </div>
                     </div>
                     {% endif %}{% empty %}
-                    <div style="text-align:center;color:var(--gray-400);font-size:0.85rem;padding:1.5rem;border:1px dashed var(--gray-300);border-radius:var(--radius);background:var(--gray-50);">Brak skonfigurowanych urzadzen sterowanych.</div>
+                    <div id="no-controls-msg-{{ d.unit.device_id }}" style="text-align:center;color:var(--gray-400);font-size:0.85rem;padding:1.5rem;border:1px dashed var(--gray-300);border-radius:var(--radius);background:var(--gray-50);">Brak skonfigurowanych urzadzen sterowanych.</div>
                     {% endfor %}
+                    </div>
                 </div>
             </div>
 
@@ -937,10 +938,11 @@
             }
         });
 
+
         // Uruchomienie cyklu pollingu (co 4 sekundy)
         setInterval(() => {
             try {
-                checkDevicesList();
+                pollForUpdates();
                 sensorConfigs.forEach(conf => updateTelemetry(conf));
                 deviceIds.forEach(devId => updateCommandLog(devId));
             } catch (err) {
@@ -1006,51 +1008,242 @@
         }
     }
 
-    // Sprawdź czy lista zarejestrowanych stacji lub peryferiów uległa zmianie
-    async function checkDevicesList() {
+    // ── POLLING BEZ PRZEŁADOWANIA — wszystkie zmiany wdrażane dynamicznie ──
+    async function pollForUpdates() {
         try {
+            // 1. Pobierz listę urządzeń i zaktualizuj statusy Online/Offline
             const resp = await fetch('/api/nodes/user-devices/');
             if (!resp.ok) return;
             const currentDevices = await resp.json();
-            
+
+            currentDevices.forEach(dev => {
+                const box = document.getElementById(`device-box-${dev.device_id}`);
+                if (!box) return;
+                const badge = box.querySelector('.online-badge');
+                if (badge) {
+                    badge.className = `online-badge ${dev.is_online ? 'online' : 'offline'}`;
+                    badge.innerHTML = `<span class="online-dot"></span>${dev.is_online ? 'Online' : 'Offline'}`;
+                }
+                const lastSeenEl = box.querySelector('.last-seen-text');
+                if (lastSeenEl && dev.last_heartbeat) {
+                    const dt = new Date(dev.last_heartbeat);
+                    lastSeenEl.textContent = `Ostatnia aktualizacja: ${dt.toLocaleString('pl-PL', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;
+                    lastSeenEl.style.color = '';
+                }
+                const offlineAlert = box.querySelector('.offline-alert');
+                if (offlineAlert) offlineAlert.style.display = dev.is_online ? 'none' : 'flex';
+            });
+
+            // 2. Sprawdź czy dodano/usunięto stację (reload tylko wtedy)
             const currentIds = currentDevices.map(d => d.device_id).sort();
             const renderedIds = [...deviceIds].sort();
-            
-            if (currentIds.length !== renderedIds.length) {
+            if (currentIds.join(',') !== renderedIds.join(',')) {
                 window.location.reload();
                 return;
             }
-            
-            for (let i = 0; i < currentIds.length; i++) {
-                if (currentIds[i] !== renderedIds[i]) {
-                    window.location.reload();
-                    return;
-                }
-            }
 
-            // Sprawdź czy zaszła zmiana w peryferiach dowolnej ze stacji
+            // 3. Sprawdź peryferia i wdróż zmiany dynamicznie
             for (const devId of deviceIds) {
                 const pResp = await fetch(`/api/nodes/peripherals/?device_id=${devId}`);
                 if (!pResp.ok) continue;
-                const pData = await pResp.json();
-                
-                const currentP = pData.peripherals.map(p => `${p.node_id}_${p.gpio || ''}_${p.peripheral_type || ''}_${p.sensor_type || ''}`).sort();
-                const renderedP = [...(renderedPeripherals[devId] || [])].sort();
+                const serverPeripherals = (await pResp.json()).peripherals;
 
-                if (currentP.length !== renderedP.length) {
-                    window.location.reload();
-                    return;
-                }
-                for (let i = 0; i < currentP.length; i++) {
-                    if (currentP[i] !== renderedP[i]) {
-                        window.location.reload();
-                        return;
+                const serverKeys = serverPeripherals.map(p =>
+                    `${p.node_id}_${p.gpio || ''}_${p.peripheral_type || ''}_${p.sensor_type || ''}`
+                );
+                const localKeys = renderedPeripherals[devId] || [];
+
+                for (const p of serverPeripherals) {
+                    const key = `${p.node_id}_${p.gpio || ''}_${p.peripheral_type || ''}_${p.sensor_type || ''}`;
+                    if (localKeys.includes(key)) continue;
+
+                    // Nowe urządzenie sterowane
+                    if (p.peripheral_type && p.gpio !== null && p.gpio !== undefined) {
+                        if (!document.getElementById(`control-card-${devId}-${p.node_id}-${p.gpio}`)) {
+                            addControlCardDynamic(devId, p);
+                        }
                     }
+                    // Nowy skonfigurowany czujnik
+                    if (p.sensor_type) {
+                        const exists = sensorConfigs.some(c =>
+                            c.deviceId === devId && c.nodeId === p.node_id && c.sensorType === p.sensor_type
+                        );
+                        if (!exists) {
+                            createDynamicSensorCard(devId, p.node_id, p.sensor_type, p.label || p.display_name);
+                            const cfgCard = document.getElementById(`newnode-${devId}-${p.node_id}`);
+                            if (cfgCard) cfgCard.style.display = 'none';
+                            if (configuredNodes[devId] && !configuredNodes[devId].includes(p.node_id)) {
+                                configuredNodes[devId].push(p.node_id);
+                            }
+                        }
+                    }
+                }
+                renderedPeripherals[devId] = serverKeys;
+
+                // 4. Sprawdź nowe węzły telemetryczne (nieskonfigurowane)
+                const tnResp = await fetch(`/api/nodes/telemetry-nodes/?device_id=${devId}`);
+                if (!tnResp.ok) continue;
+                const serverTNodes = (await tnResp.json()).node_ids || [];
+                const knownTNodes = telemetryNodeIds[devId] || [];
+                const knownConfigured = configuredNodes[devId] || [];
+                for (const nodeId of serverTNodes) {
+                    if (!knownTNodes.includes(nodeId) && !knownConfigured.includes(nodeId)) {
+                        createUnconfiguredNodeCard(devId, nodeId);
+                        if (!telemetryNodeIds[devId]) telemetryNodeIds[devId] = [];
+                        telemetryNodeIds[devId].push(nodeId);
+                    }
+                }
+
+                // Ukryj/pokaż komunikat "brak czujników"
+                const noSensorsMsg = document.getElementById(`no-sensors-msg-${devId}`);
+                if (noSensorsMsg) {
+                    const hasSensors = sensorConfigs.some(c => c.deviceId === devId);
+                    const hasUnconfigured = (telemetryNodeIds[devId] || []).some(n => !(configuredNodes[devId] || []).includes(n));
+                    noSensorsMsg.style.display = (!hasSensors && !hasUnconfigured) ? 'block' : 'none';
                 }
             }
         } catch (e) {
-            console.error("Błąd sprawdzania stacji i konfiguracji", e);
+            console.error("Błąd pollingu aktualizacji:", e);
         }
+    }
+
+    // ── DYNAMICZNE TWORZENIE KARTY CZUJNIKA (bez przeładowania) ──
+    function createDynamicSensorCard(deviceId, nodeId, sensorType, label) {
+        const sensorsGrid = document.getElementById(`sensors-grid-${deviceId}`);
+        if (!sensorsGrid) return;
+
+        const chartId = `chart-${deviceId}-${nodeId}-${sensorType}`;
+        const valId = `val-${deviceId}-${nodeId}-${sensorType}`;
+
+        if (document.getElementById(chartId)) return; // już istnieje
+
+        const displayName = label || nodeId;
+        const typeName = sensorType === 'temperature' ? 'Temperatura' :
+                         sensorType === 'humidity' ? 'Wilgotnosc' : 'Swiatlo';
+        const unit = sensorType === 'temperature' ? 'C' :
+                     sensorType === 'humidity' ? '%' : 'lux';
+
+        const card = document.createElement('div');
+        card.className = 'sensor-card';
+        card.style.animation = 'none';
+        card.innerHTML = `
+            <div class="sensor-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:700;color:var(--gray-700);">${displayName} &middot; <span style="font-weight:500;color:var(--gray-500);font-size:0.8rem;">${typeName}</span></span>
+                <div class="time-range-group">
+                    <button class="btn-range" onclick="changeChartRange('${deviceId}','${nodeId}','${sensorType}','5m',this)">5m</button>
+                    <button class="btn-range" onclick="changeChartRange('${deviceId}','${nodeId}','${sensorType}','15m',this)">15m</button>
+                    <button class="btn-range" onclick="changeChartRange('${deviceId}','${nodeId}','${sensorType}','30m',this)">30m</button>
+                    <button class="btn-range active" onclick="changeChartRange('${deviceId}','${nodeId}','${sensorType}','all',this)">Wszystko</button>
+                </div>
+            </div>
+            <div class="sensor-val" id="${valId}">
+                <span class="num">--</span>
+                <span class="sensor-unit">${unit}</span>
+            </div>
+            <div class="sensor-chart-container"><canvas id="${chartId}"></canvas></div>
+        `;
+        // Animacja pojawiania się
+        card.style.opacity = '0';
+        card.style.transition = 'opacity 0.4s';
+        sensorsGrid.appendChild(card);
+        requestAnimationFrame(() => { card.style.opacity = '1'; });
+
+        // Kolory wykresu
+        let strokeColor = "#10b981", fillColor = "rgba(16, 185, 129, 0.1)", labelText = "Temperatura (°C)";
+        if (sensorType === "humidity") { strokeColor = "#3b82f6"; fillColor = "rgba(59, 130, 246, 0.1)"; labelText = "Wilgotność (%)"; }
+        else if (sensorType === "light") { strokeColor = "#f59e0b"; fillColor = "rgba(245, 158, 11, 0.1)"; labelText = "Natężenie światła (lux)"; }
+
+        const ctx = document.getElementById(chartId);
+        charts[chartId] = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: labelText, data: [], borderColor: strokeColor, backgroundColor: fillColor, borderWidth: 2, tension: 0.3, fill: true, pointRadius: 0, pointHoverRadius: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { boxWidth: 10, font: { size: 10 } } } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 5, font: { size: 9 }, color: "#9ca3af" } }, y: { grid: { color: "rgba(243, 244, 246, 0.6)" }, ticks: { font: { size: 9 }, color: "#9ca3af" } } } }
+        });
+
+        const conf = { deviceId, nodeId, sensorType, chartId, valId };
+        sensorConfigs.push(conf);
+        updateTelemetry(conf);
+    }
+
+    // ── DYNAMICZNE TWORZENIE KARTY KONFIGURACJI NOWEGO WĘZŁA ──
+    function createUnconfiguredNodeCard(deviceId, nodeId) {
+        const sensorsGrid = document.getElementById(`sensors-grid-${deviceId}`);
+        if (!sensorsGrid) return;
+        if (document.getElementById(`newnode-${deviceId}-${nodeId}`)) return; // już istnieje
+
+        const card = document.createElement('div');
+        card.className = 'node-config-card';
+        card.id = `newnode-${deviceId}-${nodeId}`;
+        card.innerHTML = `
+            <h4>&#128225; Nowy wezel: <code>${nodeId}</code></h4>
+            <p style="font-size:0.8rem;color:#92400e;margin:0 0 0.5rem;">Ten wezel przesyla dane. Skonfiguruj go, aby wyswietlic wykres.</p>
+            <div class="node-config-form">
+                <input type="text" id="label-${deviceId}-${nodeId}" placeholder="Nazwa (np. Termometr szklarni)" style="flex:1;min-width:150px;">
+                <select id="stype-${deviceId}-${nodeId}">
+                    <option value="">-- Typ czujnika --</option>
+                    <option value="temperature">Temperatura (C)</option>
+                    <option value="humidity">Wilgotnosc (%)</option>
+                    <option value="light">Swiatlo (lux)</option>
+                </select>
+                <button class="btn btn-sm" style="padding:0.3rem 0.85rem;" onclick="saveNodeConfig('${deviceId}','${nodeId}')">Zapisz</button>
+                <span id="ncfg-status-${deviceId}-${nodeId}" style="font-size:0.75rem;color:var(--gray-500);"></span>
+            </div>
+        `;
+        card.style.opacity = '0';
+        card.style.transition = 'opacity 0.4s';
+        sensorsGrid.appendChild(card);
+        requestAnimationFrame(() => { card.style.opacity = '1'; });
+
+        // Ukryj komunikat "brak czujników"
+        const noSensorsMsg = document.getElementById(`no-sensors-msg-${deviceId}`);
+        if (noSensorsMsg) noSensorsMsg.style.display = 'none';
+    }
+
+    // ── DYNAMICZNE TWORZENIE KARTY STEROWANIA ──
+    function addControlCardDynamic(deviceId, p) {
+        const container = document.getElementById(`controls-container-${deviceId}`);
+        if (!container) return;
+        if (document.getElementById(`control-card-${deviceId}-${p.node_id}-${p.gpio}`)) return;
+
+        const isLamp = p.peripheral_type === 'LAMP';
+        const labelText = p.label || p.display_name || p.node_id;
+        const icon = isLamp
+            ? '<svg style="width:16px;height:16px;fill:var(--green-700);" viewBox="0 0 24 24"><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></svg>'
+            : '<svg style="width:16px;height:16px;fill:#3b82f6;" viewBox="0 0 24 24"><path d="M12,20A6,6 0 0,1 6,14C6,10 12,3.25 12,3.25C12,3.25 18,10 18,14A6,6 0 0,1 12,20Z"/></svg>';
+
+        let btnsLeft = '', btnsRight = '';
+        if (isLamp) {
+            btnsLeft = `<button class="btn btn-sm" onclick="sendCmd('${deviceId}','${p.node_id}',${p.gpio},'TURN_ON')">Wlacz</button><button class="btn btn-sm btn-off" onclick="sendCmd('${deviceId}','${p.node_id}',${p.gpio},'TURN_OFF')">Wylacz</button>`;
+            btnsRight = `<div class="control-input-group"><input type="number" id="time-${deviceId}-${p.node_id}-${p.gpio}" value="10" min="1" max="1440"><span>min</span></div><button class="btn btn-sm btn-secondary" style="width:auto;" onclick="sendCmdForTime('${deviceId}','${p.node_id}',${p.gpio},'TURN_ON_FOR')">Wlacz na czas</button>`;
+        } else {
+            btnsLeft = `<button class="btn btn-sm btn-off" onclick="sendCmd('${deviceId}','${p.node_id}',${p.gpio},'TURN_OFF')">Wylacz</button>`;
+            btnsRight = `<div class="control-input-group"><input type="number" id="time-${deviceId}-${p.node_id}-${p.gpio}" value="15" min="1" max="240"><span>min</span></div><button class="btn btn-sm" style="width:auto;background:#2563eb;" onclick="sendCmdForTime('${deviceId}','${p.node_id}',${p.gpio},'WATER_PUMP_ON')">Nawadniaj</button>`;
+        }
+
+        const card = document.createElement('div');
+        card.className = 'control-card';
+        card.id = `control-card-${deviceId}-${p.node_id}-${p.gpio}`;
+        card.innerHTML = `
+            <div class="control-card-header">
+                <div class="control-card-title">${icon}<span>${labelText} &middot; GPIO ${p.gpio}</span></div>
+                <div class="control-card-status">
+                    <div class="status-dot" id="led-${deviceId}-${p.node_id}-${p.gpio}"></div>
+                    <span class="status-text" id="state-lbl-${deviceId}-${p.node_id}-${p.gpio}">WYŁĄCZONY</span>
+                </div>
+            </div>
+            <div class="control-card-body">
+                <div class="control-btn-group">${btnsLeft}</div>
+                <div class="control-btn-group">${btnsRight}<span id="status-${deviceId}-${p.node_id}-${p.gpio}" class="status-msg" style="opacity:0;"></span></div>
+            </div>
+        `;
+        card.style.opacity = '0';
+        card.style.transition = 'opacity 0.4s';
+        container.appendChild(card);
+        requestAnimationFrame(() => { card.style.opacity = '1'; });
+
+        // Ukryj komunikat "brak urządzeń"
+        const noMsg = document.getElementById(`no-controls-msg-${deviceId}`);
+        if (noMsg) noMsg.style.display = 'none';
     }
 
     // Wyszukaj i załaduj telemetrię z serwera (z uwzględnieniem wybranego limitu czasu)
@@ -1513,8 +1706,9 @@
                 body: JSON.stringify({ device_id: deviceId, node_id: nodeId, sensor_type: sensorType, label: label || null })
             });
             if (resp.ok) {
-                if (statusEl) { statusEl.textContent = 'Zapisano! Odswiezam...'; statusEl.style.color = '#10b981'; }
-                setTimeout(() => window.location.reload(), 800);
+                if (statusEl) { statusEl.textContent = 'Zapisano!'; statusEl.style.color = '#10b981'; }
+                // Wyzwól polling natychmiast, aby wykryć konfigurację i utworzyć kartę czujnika dynamicznie
+                setTimeout(() => pollForUpdates(), 500);
             } else {
                 const err = await resp.json();
                 if (statusEl) { statusEl.textContent = 'Blad: ' + (err.detail || JSON.stringify(err)); statusEl.style.color = '#dc2626'; }

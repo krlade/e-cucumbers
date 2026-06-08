@@ -430,7 +430,8 @@
 
     async function verifyDeviceConnection() {
         logSystem("Weryfikacja autoryzacji stacji na serwerze...");
-        const res = await apiRequest("POST", "/api/nodes/heartbeat/");
+        // GET — tylko weryfikacja JWT, BEZ aktualizacji heartbeatu i BEZ dostarczania komend
+        const res = await apiRequest("GET", "/api/nodes/heartbeat/");
         if (res.ok) {
             logSystem.ok("Połączenie i autoryzacja stacji zweryfikowane pomyślnie.");
             document.getElementById("status-badge").textContent = "Połączono";
@@ -497,6 +498,7 @@
 
     // ── KONSOLA LOGÓW ──
     function logMessage(text, className = "console-sys") {
+        console.log(`[SIMLOG] [${className}] ${text}`);
         const consoleEl = document.getElementById("console-output");
         if (!consoleEl) return;
 
@@ -653,6 +655,7 @@
 
             logApi.ok(`Urządzenie zarejestrowane! Właściciel: ${state.owner}`);
             showPanel(true);
+            renderPeripherals();
 
             // Wyślij startową listę peryferiów (domyślnie pusta, lub jeśli była w localStorage)
             await syncPeripheralsToServer();

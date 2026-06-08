@@ -133,13 +133,19 @@ class RegisterPeripheralsView(APIView):
 
         registered = []
         for p in peripherals_data:
+            # Buduj defaults tylko z pól podanych w payload.
+            # NIE nadpisuj sensor_type/label — te pola konfiguruje użytkownik na Dashboardzie.
+            defaults = {}
+            if "gpio" in p:
+                defaults["gpio"] = p["gpio"]
+            if "peripheral_type" in p:
+                defaults["peripheral_type"] = p["peripheral_type"]
+            if "sensor_type" in p and p["sensor_type"] is not None:
+                defaults["sensor_type"] = p["sensor_type"]
+
             obj, _ = ControllableNode.objects.update_or_create(
                 gateway=gateway, node_id=p["node_id"],
-                defaults={
-                    "gpio": p.get("gpio"),
-                    "peripheral_type": p.get("peripheral_type"),
-                    "sensor_type": p.get("sensor_type"),
-                },
+                defaults=defaults,
             )
             registered.append(obj)
 
@@ -290,6 +296,24 @@ class HeartbeatView(APIView):
     Zapisuje czas heartbeatu — używany do statusu Online/Offline.
     """
     permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """Weryfikacja JWT urządzenia — BEZ aktualizacji heartbeatu i dostarczania komend.
+
+        Używane przez symulator do sprawdzenia czy JWT jest ważny po załadowaniu strony.
+        Nie zmienia stanu serwera (brak efektów ubocznych).
+        """
+        try:
+            gateway = CentralUnit.objects.get(device_user=request.user)
+        except CentralUnit.DoesNotExist:
+            return Response(
+                {"detail": "This JWT does not belong to any registered gateway."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return Response(
+            {"device_id": gateway.device_id, "status": "authenticated"},
+            status=status.HTTP_200_OK,
+        )
 
     def post(self, request):
         # JWT musi należeć do device_user, nie do zwykłego użytkownika
@@ -452,3 +476,34 @@ class ListDevicesView(APIView):
                 "is_online": o.device.is_online,
             })
         return Response(devices_list)
+
+
+class TelemetryNodesView(APIView):
+    """GET /api/nodes/telemetry-nodes/?device_id=XXX
+
+    Zwraca listę node_id które przesyłały telemetrię do danej stacji.
+    Używane przez Dashboard do dynamicznego wykrywania nowych węzłów
+    bez przeładowania strony.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        device_id = request.query_params.get("device_id")
+        if not device_id:
+            return Response({"detail": "Query parameter 'device_id' is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            gateway = CentralUnit.objects.get(device_id=device_id)
+        except CentralUnit.DoesNotExist:
+            return Response({"detail": "Device not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not DeviceOwnership.objects.filter(user=request.user, device=gateway).exists():
+            return Response({"detail": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        node_ids = list(
+            TelemetryReading.objects
+            .filter(gateway=gateway)
+            .values_list("node_id", flat=True)
+            .distinct()
+        )
+        return Response({"device_id": device_id, "node_ids": node_ids})
