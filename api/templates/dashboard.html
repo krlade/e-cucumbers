@@ -486,15 +486,8 @@
         <div style="color:var(--gray-500); font-size:0.85rem;">Integracja alertów hodowlanych (Discord / SMS) zostanie uruchomiona w kolejnej fazie deweloperskiej.</div>
     </div>
 
-    {% if user.is_superuser %}
-    <div class="info-card" style="background: var(--green-50); border: 1px solid var(--green-200); grid-column: span 2;">
-        <h3 style="color: var(--green-800);">Panel Administracyjny</h3>
-        <div style="padding:0.5rem 0;">
-            <p style="font-size: 0.875rem; color: var(--green-700); margin-bottom: 0.75rem;">Zarządzaj kontami innych użytkowników oraz modyfikuj ich uprawnienia globalne.</p>
-            <a href="{% url 'manage_users' %}" class="btn" style="padding: 0.4rem 1rem; font-size: 0.8rem; width: auto; display: inline-block;">Przejdź do zarządzania</a>
-        </div>
-    </div>
-    {% endif %}
+
+
 </div>
 
 <!-- Zarejestrowane Jednostki Centralne -->
