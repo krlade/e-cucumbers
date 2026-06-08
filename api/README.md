@@ -12,6 +12,7 @@ Dokumentacja techniczna serwerowej części projektu **E-Cucumbers** — systemu
 5. [Symulator](#5-symulator)
 6. [Wymagania implementacyjne dla Gateway](#6-wymagania-implementacyjne-dla-gateway)
 7. [Schemat bazy danych](#7-schemat-bazy-danych)
+8. [Discord Webhook](#8-discord-webhook)
 
 ---
 
@@ -280,3 +281,78 @@ Brak tokenów? → Czekaj na TEMP-XXXX → POST /register-device/
 ## 7. Schemat bazy danych
 
 ![Schemat bazy danych (być może trochę nieaktualny)](db-schema-visualization.png)
+
+---
+
+## 8. Discord Webhook
+
+Endpoint przeznaczony do integracji z Discord webhookiem. Nie wymaga autoryzacji — może być odpytywany bezpośrednio przez bota Discord co godzinę i zwraca kompletny snapshot stanu systemu.
+
+### Endpoint
+
+| Metoda | Endpoint | Auth | Opis |
+|---|---|---|---|
+| `GET` | `/api/nodes/status-summary/` | ❌ | Snapshot wszystkich jednostek centralnych z węzłami i stanem peryferiów |
+
+### Format odpowiedzi
+
+```json
+{
+  "generated_at": "2026-06-08T17:42:36+00:00",
+  "units": [
+    {
+      "device_id": "RPi_01",
+      "is_online": true,
+      "last_heartbeat": "2026-06-08T17:42:33+00:00",
+      "sensor_nodes": [
+        {
+          "node_id": "Pico_01",
+          "label": "Termometr szklarni",
+          "sensor_type": "temperature",
+          "last_value": 23.5
+        }
+      ],
+      "peripherals": [
+        {
+          "node_id": "Pico_02",
+          "label": "Lampa",
+          "gpio": 1,
+          "peripheral_type": "LAMP",
+          "gpio_state": "ON"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Pola
+
+**Jednostka centralna:**
+
+| Pole | Opis |
+|---|---|
+| `device_id` | Identyfikator gateway |
+| `is_online` | `true` jeśli heartbeat był w ciągu ostatnich 30 sekund |
+| `last_heartbeat` | ISO 8601, czas ostatniego heartbeatu (lub `null`) |
+| `sensor_nodes` | Lista węzłów czujnikowych z ostatnim odczytem |
+| `peripherals` | Lista peryferiów sterowanych z aktualnym stanem GPIO |
+
+**Węzeł czujnikowy (`sensor_nodes`):**
+
+| Pole | Opis |
+|---|---|
+| `node_id` | ID węzła Pico |
+| `label` | Etykieta nadana przez użytkownika (lub `null`) |
+| `sensor_type` | `temperature` / `humidity` / `light` (lub `null` jeśli nieskonfigurowany) |
+| `last_value` | Ostatni odczyt numeryczny |
+
+**Peryferium sterowane (`peripherals`):**
+
+| Pole | Opis |
+|---|---|
+| `node_id` | ID węzła Pico |
+| `label` | Etykieta nadana przez użytkownika (lub `null`) |
+| `gpio` | Numer pinu GPIO |
+| `peripheral_type` | `LAMP` / `SPRINKLER` |
+| `gpio_state` | `"ON"` / `"OFF"` — stan pobierany z pola `is_active` modelu `ControllableNode`, aktualizowanego przy każdym heartbeacie |
