@@ -147,6 +147,10 @@ class ControllableNode(models.Model):
         max_length=100, null=True, blank=True,
         help_text="Przyjazna nazwa urządzenia nadana przez użytkownika, np. 'Lampa nad rozsadą'.",
     )
+    is_active = models.BooleanField(
+        default=False,
+        help_text="Aktualny fizyczny/logiczny stan urządzenia (True = włączony, False = wyłączony)."
+    )
     registered_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -12,6 +12,7 @@ Dokumentacja techniczna serwerowej części projektu **E-Cucumbers** — systemu
 5. [Symulator](#5-symulator)
 6. [Wymagania implementacyjne dla Gateway](#6-wymagania-implementacyjne-dla-gateway)
 7. [Schemat bazy danych](#7-schemat-bazy-danych)
+8. [Discord Webhook](#8-discord-webhook)
 
 ---
 
@@ -55,7 +56,7 @@ Minimalny monolit Django: widoki HTML (szablony) + JSON API.
 - `PairingToken` — token parowania `TEMP-XXXX`, ważny 15 min
 - `CentralUnit` — zarejestrowany Gateway z JWT (`device_user`) i polem `last_heartbeat`
 - `DeviceOwnership` — relacja użytkownik ↔ gateway, role: `admin` / `viewer`
-- `ControllableNode` — opcjonalna konfiguracja węzła nadana przez użytkownika (etykieta, `sensor_type`, `gpio`)
+- `ControllableNode` — opcjonalna konfiguracja węzła nadana przez użytkownika (etykieta, `sensor_type`, `gpio`, `is_active` - przechowujący aktualny stan włączenia urządzenia)
 - `QueuedCommand` — kolejka komend powiązana z `CentralUnit` + `node_id` + `gpio`; statusy: `pending` / `delivered`
 - `TelemetryReading` — surowe dane z węzłów; `raw_payload` = oryginalny JSON od Pico
 
@@ -115,6 +116,7 @@ Inne widoki:
 | `POST` | `/api/nodes/node-config/` | ✅ user | Konfiguruje węzeł z Dashboardu. Payload: `{device_id, node_id, sensor_type, label}` |
 | `GET` | `/api/nodes/peripherals/?device_id=` | ✅ user/device | Lista węzłów z konfiguracją (używane przez panel sterowania) |
 | `GET` | `/api/nodes/user-devices/` | ✅ user | Wszystkie gateway'e użytkownika z rolą i statusem online |
+| `GET` | `/api/nodes/status-summary/` | ❌ | Publiczny snapshot całego systemu dla Discord webhooka (statusy stacji, odczyty i stan urządzeń) |
 
 #### Walidacja komend
 
@@ -278,4 +280,79 @@ Brak tokenów? → Czekaj na TEMP-XXXX → POST /register-device/
 
 ## 7. Schemat bazy danych
 
-![Schemat bazy danych](db-schema-visualization.png)
+![Schemat bazy danych (być może trochę nieaktualny)](db-schema-visualization.png)
+
+---
+
+## 8. Discord Webhook
+
+Endpoint przeznaczony do integracji z Discord webhookiem. Nie wymaga autoryzacji — może być odpytywany bezpośrednio przez bota Discord co godzinę i zwraca kompletny snapshot stanu systemu.
+
+### Endpoint
+
+| Metoda | Endpoint | Auth | Opis |
+|---|---|---|---|
+| `GET` | `/api/nodes/status-summary/` | ❌ | Snapshot wszystkich jednostek centralnych z węzłami i stanem peryferiów |
+
+### Format odpowiedzi
+
+```json
+{
+  "generated_at": "2026-06-08T17:42:36+00:00",
+  "units": [
+    {
+      "device_id": "RPi_01",
+      "is_online": true,
+      "last_heartbeat": "2026-06-08T17:42:33+00:00",
+      "sensor_nodes": [
+        {
+          "node_id": "Pico_01",
+          "label": "Termometr szklarni",
+          "sensor_type": "temperature",
+          "last_value": 23.5
+        }
+      ],
+      "peripherals": [
+        {
+          "node_id": "Pico_02",
+          "label": "Lampa",
+          "gpio": 1,
+          "peripheral_type": "LAMP",
+          "gpio_state": "ON"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Pola
+
+**Jednostka centralna:**
+
+| Pole | Opis |
+|---|---|
+| `device_id` | Identyfikator gateway |
+| `is_online` | `true` jeśli heartbeat był w ciągu ostatnich 30 sekund |
+| `last_heartbeat` | ISO 8601, czas ostatniego heartbeatu (lub `null`) |
+| `sensor_nodes` | Lista węzłów czujnikowych z ostatnim odczytem |
+| `peripherals` | Lista peryferiów sterowanych z aktualnym stanem GPIO |
+
+**Węzeł czujnikowy (`sensor_nodes`):**
+
+| Pole | Opis |
+|---|---|
+| `node_id` | ID węzła Pico |
+| `label` | Etykieta nadana przez użytkownika (lub `null`) |
+| `sensor_type` | `temperature` / `humidity` / `light` (lub `null` jeśli nieskonfigurowany) |
+| `last_value` | Ostatni odczyt numeryczny |
+
+**Peryferium sterowane (`peripherals`):**
+
+| Pole | Opis |
+|---|---|
+| `node_id` | ID węzła Pico |
+| `label` | Etykieta nadana przez użytkownika (lub `null`) |
+| `gpio` | Numer pinu GPIO |
+| `peripheral_type` | `LAMP` / `SPRINKLER` |
+| `gpio_state` | `"ON"` / `"OFF"` — stan pobierany z pola `is_active` modelu `ControllableNode`, aktualizowanego przy każdym heartbeacie |

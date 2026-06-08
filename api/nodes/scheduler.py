@@ -14,7 +14,7 @@ def check_expired_commands():
     scheduler automatycznie tworzy komendę TURN_OFF dla tego samego węzła i GPIO.
     """
     # Import wewnątrz funkcji — unikamy circular import przy starcie Django
-    from .models import CentralUnit, QueuedCommand
+    from .models import CentralUnit, QueuedCommand, ControllableNode
 
     while True:
         try:
@@ -57,6 +57,11 @@ def check_expired_commands():
                         status=QueuedCommand.STATUS_PENDING,
                         issued_by=cmd.issued_by,
                     )
+                    ControllableNode.objects.filter(
+                        gateway=cmd.gateway,
+                        node_id=cmd.node_id,
+                        gpio=cmd.gpio
+                    ).update(is_active=False)
 
         except Exception as e:
             logger.error("Błąd w schedulerze: %s", e, exc_info=True)

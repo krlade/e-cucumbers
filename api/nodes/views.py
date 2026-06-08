@@ -352,6 +352,12 @@ class HeartbeatView(APIView):
                 "gpio": cmd.gpio,
                 "command": simple_cmd,
             })
+            # Aktualizacja pola is_active w bazie danych
+            ControllableNode.objects.filter(
+                gateway=gateway,
+                node_id=cmd.node_id,
+                gpio=cmd.gpio
+            ).update(is_active=(simple_cmd == "TURN_ON"))
 
         return Response(
             {
@@ -476,6 +482,78 @@ class ListDevicesView(APIView):
                 "is_online": o.device.is_online,
             })
         return Response(devices_list)
+
+
+class StatusSummaryView(APIView):
+    """GET /api/nodes/status-summary/ — publiczny snapshot całego systemu dla Discord webhooka.
+
+    Brak autoryzacji. Zwraca listę wszystkich jednostek centralnych wraz z:
+    - statusem Online/Offline i czasem ostatniego heartbeatu,
+    - listą węzłów czujnikowych z ostatnim odczytem telemetrii,
+    - listą peryferiów sterowanych z aktualnym stanem GPIO (wnioskowanym z historii komend).
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone as tz
+
+        units = CentralUnit.objects.all().order_by("registered_at")
+        result = []
+
+        for unit in units:
+            # ── Węzły czujnikowe: dokładnie jeden (ostatni) odczyt per node_id ─
+            sensor_nodes = []
+            from django.db.models import Max
+            last_per_node = (
+                TelemetryReading.objects
+                .filter(gateway=unit)
+                .values("node_id")
+                .annotate(last_at=Max("recorded_at"))
+            )
+            for item in last_per_node:
+                node_id = item["node_id"]
+                last = TelemetryReading.objects.filter(
+                    gateway=unit, node_id=node_id, recorded_at=item["last_at"]
+                ).first()
+
+                # Pobierz konfigurację węzła (etykieta, typ czujnika) jeśli istnieje
+                try:
+                    cfg = ControllableNode.objects.get(gateway=unit, node_id=node_id)
+                    label = cfg.label
+                    sensor_type = cfg.sensor_type or (last.sensor_type if last else None)
+                except ControllableNode.DoesNotExist:
+                    label = None
+                    sensor_type = last.sensor_type if last else None
+
+                sensor_nodes.append({
+                    "node_id": node_id,
+                    "label": label,
+                    "sensor_type": sensor_type,
+                    "last_value": last.value if last else None,
+                })
+
+            # ── Peryferia sterowane (ControllableNode z gpio) ─────────────────
+            peripherals_out = []
+            for p in ControllableNode.objects.filter(gateway=unit).exclude(gpio=None).order_by("node_id", "gpio"):
+                gpio_state = "ON" if p.is_active else "OFF"
+
+                peripherals_out.append({
+                    "node_id": p.node_id,
+                    "label": p.label,
+                    "gpio": p.gpio,
+                    "peripheral_type": p.peripheral_type,
+                    "gpio_state": gpio_state,
+                })
+
+            result.append({
+                "device_id": unit.device_id,
+                "is_online": unit.is_online,
+                "last_heartbeat": unit.last_heartbeat.isoformat() if unit.last_heartbeat else None,
+                "sensor_nodes": sensor_nodes,
+                "peripherals": peripherals_out,
+            })
+
+        return Response({"generated_at": tz.now().isoformat(), "units": result})
 
 
 class TelemetryNodesView(APIView):

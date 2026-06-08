@@ -12,4 +12,5 @@ urlpatterns = [
     path("telemetry/", views.TelemetryView.as_view(), name="telemetry"),
     path("telemetry-nodes/", views.TelemetryNodesView.as_view(), name="telemetry-nodes"),
     path("user-devices/", views.ListDevicesView.as_view(), name="user-devices"),
+    path("status-summary/", views.StatusSummaryView.as_view(), name="status-summary"),
 ]

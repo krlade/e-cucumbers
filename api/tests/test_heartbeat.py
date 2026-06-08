@@ -66,6 +66,14 @@ for _ in range(2):
     assert s == 201
 print("  [OK]\n")
 
+# Sprawdź początkowy stan (is_active = False)
+s, b = req("GET", "/api/nodes/peripherals/?device_id=2137", token=jan_access)
+assert s == 200
+p1 = next(p for p in b["peripherals"] if p["node_id"] == "Pico_01")
+p2 = next(p for p in b["peripherals"] if p["node_id"] == "Pico_02")
+assert p1["is_active"] is False
+assert p2["is_active"] is False
+
 # ── 1. Heartbeat z device JWT — odbiera 5 komend ──
 print("=== 1. Heartbeat receives pending commands ===")
 s, b = req("POST", "/api/nodes/heartbeat/", token=device_access)
@@ -81,6 +89,14 @@ assert "peripheral_type" not in cmd
 assert "time" not in cmd
 print(f"  Przykładowa komenda: node={cmd['node_id']} gpio={cmd['gpio']} "
       f"cmd={cmd['command']}")
+
+# Sprawdź czy stan zmienił się na True po dostarczeniu komend
+s, b = req("GET", "/api/nodes/peripherals/?device_id=2137", token=jan_access)
+assert s == 200
+p1 = next(p for p in b["peripherals"] if p["node_id"] == "Pico_01")
+p2 = next(p for p in b["peripherals"] if p["node_id"] == "Pico_02")
+assert p1["is_active"] is True
+assert p2["is_active"] is True
 print("  [PASS]")
 
 # ── 2. Kolejny heartbeat — brak pending (już dostarczone) ──
@@ -103,6 +119,14 @@ print(f"  Status: {s}, pending_count: {b.get('pending_count')}")
 assert s == 200
 assert b["pending_count"] == 1
 assert b["commands"][0]["command"] == "TURN_OFF"
+
+# Sprawdź czy stan Pico_01 zmienił się na False po dostarczeniu TURN_OFF, a Pico_02 pozostał True
+s, b = req("GET", "/api/nodes/peripherals/?device_id=2137", token=jan_access)
+assert s == 200
+p1 = next(p for p in b["peripherals"] if p["node_id"] == "Pico_01")
+p2 = next(p for p in b["peripherals"] if p["node_id"] == "Pico_02")
+assert p1["is_active"] is False
+assert p2["is_active"] is True
 print("  [PASS]")
 
 # ── 4. Blokada: user JWT nie może uderzać w heartbeat ──

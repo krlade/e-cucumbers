@@ -613,8 +613,8 @@
                                 <span>{% if p.label %}{{ p.label }}{% else %}{{ p.node_id }}{% endif %} &middot; GPIO {{ p.gpio }}</span>
                             </div>
                             <div class="control-card-status">
-                                <div class="status-dot" id="led-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}"></div>
-                                <span class="status-text" id="state-lbl-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}">WYLACZONY</span>
+                                <div class="status-dot" id="led-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" style="{% if p.is_active %}background-color: {% if p.peripheral_type == 'LAMP' %}var(--green-500){% else %}#2563eb{% endif %}; box-shadow: 0 0 8px {% if p.peripheral_type == 'LAMP' %}var(--green-500){% else %}#2563eb{% endif %};{% endif %}"></div>
+                                <span class="status-text" id="state-lbl-{{ d.unit.device_id }}-{{ p.node_id }}-{{ p.gpio }}" style="{% if p.is_active %}color: {% if p.peripheral_type == 'LAMP' %}var(--green-600){% else %}#1d4ed8{% endif %};{% endif %}">{% if p.is_active %}WŁĄCZONY{% else %}WYŁĄCZONY{% endif %}</span>
                             </div>
                         </div>
                         <div class="control-card-body">
@@ -801,6 +801,21 @@
             "{{ d.unit.device_id }}": [
                 {% for p in d.peripherals %}
                     "{{ p.node_id }}_{{ p.gpio|default:'' }}_{{ p.peripheral_type|default:'' }}_{{ p.sensor_type|default:'' }}",
+                {% endfor %}
+            ],
+        {% endfor %}
+    };
+
+    const latestPeripherals = {
+        {% for d in devices %}
+            "{{ d.unit.device_id }}": [
+                {% for p in d.peripherals %}
+                {
+                    node_id: "{{ p.node_id }}",
+                    gpio: {{ p.gpio|default:"null" }},
+                    peripheral_type: "{{ p.peripheral_type|default:"" }}",
+                    is_active: {% if p.is_active %}true{% else %}false{% endif %}
+                },
                 {% endfor %}
             ],
         {% endfor %}
@@ -1047,6 +1062,7 @@
                 const pResp = await fetch(`/api/nodes/peripherals/?device_id=${devId}`);
                 if (!pResp.ok) continue;
                 const serverPeripherals = (await pResp.json()).peripherals;
+                latestPeripherals[devId] = serverPeripherals;
 
                 const serverKeys = serverPeripherals.map(p =>
                     `${p.node_id}_${p.gpio || ''}_${p.peripheral_type || ''}_${p.sensor_type || ''}`
@@ -1506,8 +1522,10 @@
             const stateLbl = document.getElementById(`state-lbl-${deviceId}-${nodeId}-${gpio}`);
             if (!stateLbl) return;
 
-            const cmd = latestDelivered[key];
-            if (!cmd) {
+            const peripheral = (latestPeripherals[deviceId] || []).find(p => p.node_id === nodeId && String(p.gpio) === gpio);
+            const isActive = peripheral ? peripheral.is_active : false;
+
+            if (!isActive) {
                 led.style.backgroundColor = "var(--gray-300)";
                 led.style.boxShadow = "none";
                 stateLbl.textContent = "WYŁĄCZONY";
@@ -1516,31 +1534,22 @@
                 return;
             }
 
-            if (cmd.command === "TURN_OFF") {
-                led.style.backgroundColor = "var(--gray-300)";
-                led.style.boxShadow = "none";
-                stateLbl.textContent = "WYŁĄCZONY";
-                stateLbl.style.color = "var(--gray-500)";
-                stateLbl.className = "";
-            } else if (cmd.command === "TURN_ON") {
-                led.style.backgroundColor = "var(--green-500)";
-                led.style.boxShadow = "0 0 8px var(--green-500)";
-                stateLbl.textContent = "WŁĄCZONY";
-                stateLbl.style.color = "var(--green-600)";
-                stateLbl.className = "";
-            } else if (cmd.command === "TURN_ON_FOR" || cmd.command === "WATER_PUMP_ON") {
+            const isLamp = (peripheral && peripheral.peripheral_type === "LAMP");
+            const activeColor = isLamp ? "var(--green-500)" : "#2563eb";
+            const activeTextColor = isLamp ? "var(--green-600)" : "#1d4ed8";
+
+            // Jeśli jest aktywny, sprawdź czy jest aktywna komenda czasowa z odliczaniem
+            const cmd = latestDelivered[key];
+            if (cmd && (cmd.command === "TURN_ON_FOR" || cmd.command === "WATER_PUMP_ON")) {
                 const deliveredTime = new Date(cmd.delivered_at).getTime();
                 const durationMs = cmd.time * 60 * 1000;
                 const endTime = deliveredTime + durationMs;
                 const remainingMs = endTime - getSyncedNow();
 
-                const isLamp = cmd.peripheral_type === "LAMP";
-                const activeColor = isLamp ? "var(--green-500)" : "#2563eb";
-
                 if (remainingMs > 0) {
                     led.style.backgroundColor = activeColor;
                     led.style.boxShadow = `0 0 8px ${activeColor}`;
-                    stateLbl.style.color = isLamp ? "var(--green-600)" : "#1d4ed8";
+                    stateLbl.style.color = activeTextColor;
                     
                     stateLbl.className = "dashboard-countdown";
                     stateLbl.setAttribute("data-end-time", endTime.toString());
@@ -1549,14 +1558,16 @@
                     
                     const totalSec = Math.floor(remainingMs / 1000);
                     stateLbl.textContent = (isLamp ? "WŁĄCZONY (pozostało " : "NAWADNIANIE (pozostało ") + `${formatDuration(totalSec)})`;
-                } else {
-                    led.style.backgroundColor = "var(--gray-300)";
-                    led.style.boxShadow = "none";
-                    stateLbl.textContent = "WYŁĄCZONY";
-                    stateLbl.style.color = "var(--gray-500)";
-                    stateLbl.className = "";
+                    return;
                 }
             }
+
+            // Domyślny stan włączony bez odliczania
+            led.style.backgroundColor = activeColor;
+            led.style.boxShadow = `0 0 8px ${activeColor}`;
+            stateLbl.textContent = "WŁĄCZONY";
+            stateLbl.style.color = activeTextColor;
+            stateLbl.className = "";
         });
     }
 

@@ -45,7 +45,7 @@ class PeripheralSerializer(serializers.ModelSerializer):
         model = ControllableNode
         fields = [
             "id", "node_id", "gpio", "peripheral_type", "sensor_type",
-            "label", "display_name", "allowed_commands", "updated_at",
+            "label", "display_name", "allowed_commands", "updated_at", "is_active",
         ]
         read_only_fields = fields
 
