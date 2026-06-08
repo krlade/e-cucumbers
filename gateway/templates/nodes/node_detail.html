@@ -646,6 +646,25 @@
             </form>
         </div>
 
+        {# ── Dane sensora ───────────────────────────────── #}
+        <div class="ctrl-group">
+            <span class="ctrl-group-label">Dane sensora</span>
+            <form method="POST" action="{% url 'node_detail' node.name %}">
+                {% csrf_token %}
+                <input type="hidden" name="command" value="get_pins">
+                <button type="submit" class="ctrl-btn ctrl-btn-gray">🔌 get_pins</button>
+            </form>
+            <form method="POST" action="{% url 'node_detail' node.name %}">
+                {% csrf_token %}
+                <input type="hidden" name="command" value="get_format">
+                <button type="submit" class="ctrl-btn ctrl-btn-gray">📐 get_format</button>
+            </form>
+            <form method="POST" action="{% url 'node_register_peripheral' node.name %}">
+                {% csrf_token %}
+                <button type="submit" class="ctrl-btn ctrl-btn-green">📡 register peripherals</button>
+            </form>
+        </div>
+
         {# ── Echo ─────────────────────────────────────────── #}
         <div class="ctrl-group">
             <span class="ctrl-group-label">Test komunikacji</span>

@@ -206,7 +206,6 @@ class Device:
                     'delay_ms': self.delay_ms,
                     'pins': self.pins,
                     'last_data': self.last_data,
-                    'sensor_pin': self.sensor_pin,
                     'sensor_kind': self.sensor_kind,
                     'sensor_type': self.sensor_type,
                     'sensor_unit': self.sensor_unit,
@@ -281,7 +280,6 @@ class Gateway:
                 device.delay_ms = node.delay_ms
                 device.pins = node.pins if node.pins else {}
                 
-                device.sensor_pin = node.sensor_pin
                 device.sensor_kind = node.sensor_kind
                 device.sensor_type = node.sensor_type
                 device.sensor_unit = node.sensor_unit

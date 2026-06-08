@@ -92,7 +92,9 @@ def dashboard_view(request):
         new_name = request.POST.get("new_device_name").strip()
         if station and new_name:
             station.add_device(new_name)
-            station.save_state()
+            # Upewnij się, że rekord Node istnieje w DB (wymagany przez widok node_detail)
+            from nodes.models import Node
+            Node.objects.get_or_create(name=new_name)
         return redirect("dashboard")
 
     devices = station.devices.values() if station else []

@@ -8,10 +8,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .models import Node, ScheduledCommand, SCHEDULABLE_COMMANDS, SCHEDULABLE_COMMANDS_INT_ARG
 
 # Commands that require an integer argument (for manual dispatch)
-_COMMANDS_WITH_INT_ARG = {"pin_on", "pin_off", "change_delay", "get_format"}
+_COMMANDS_WITH_INT_ARG = {"pin_on", "pin_off", "change_delay"}
 
 # All allowed commands (whitelist — never pass arbitrary strings to MQTT)
-_ALLOWED_COMMANDS = {"set_on", "set_off", "echo", "get_pins"} | _COMMANDS_WITH_INT_ARG
+_ALLOWED_COMMANDS = {"set_on", "set_off", "echo", "get_pins", "get_format"} | _COMMANDS_WITH_INT_ARG
 
 
 def _get_live_device(name: str):
@@ -139,6 +139,22 @@ def node_set_sensor_kind(request, name: str):
     node.sensor_kind = kind if kind else None
     node.save()
     return JsonResponse({"result": "ok", "sensor_kind": node.sensor_kind})
+
+
+@login_required
+def node_register_peripheral(request, name: str):
+    """POST /api/nodes/<name>/register-peripheral/ — rejestruje węzeł jako peryferium w Central API."""
+    if request.method != "POST":
+        return redirect("node_detail", name=name)
+
+    try:
+        from ecucumbers.api_client import register_peripheral
+        register_peripheral(name)
+        messages.success(request, f"✓ Węzeł '{name}' zarejestrowany w Central API.")
+    except Exception as exc:
+        messages.error(request, f"Błąd rejestracji: {exc}")
+
+    return redirect("node_detail", name=name)
 
 
 # ---------------------------------------------------------------------------

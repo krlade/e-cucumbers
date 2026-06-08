@@ -160,12 +160,12 @@ def send_telemetry(node_id: str, value: float):
 
     payload = {
         "node_id": node_id,
-        "value": float(value),
+        "payload": {"data": float(value)},
     }
 
     try:
         _post("/api/nodes/telemetry/", payload, token=access)
-        logger.info("[ApiClient] Pomyślnie wysłano telemetrię dla %s: %s", node_id, payload["value"])
+        logger.info("[ApiClient] Pomyślnie wysłano telemetrię dla %s: %s", node_id, payload["payload"]["data"])
     except RuntimeError as e:
         err_str = str(e)
         if "401" in err_str:
@@ -175,7 +175,7 @@ def send_telemetry(node_id: str, value: float):
                 _save_tokens(tokens)
                 try:
                     _post("/api/nodes/telemetry/", payload, token=new_access)
-                    logger.info("[ApiClient] Pomyślnie wysłano telemetrię dla %s: %s (po refreshu)", node_id, payload["value"])
+                    logger.info("[ApiClient] Pomyślnie wysłano telemetrię dla %s: %s (po refreshu)", node_id, payload["payload"]["data"])
                 except Exception:
                     logger.warning("[ApiClient] Błąd wysyłania telemetrii dla %s po odświeżeniu tokenu.", node_id)
         elif "nie jest zarejestrowany" in err_str:
@@ -202,13 +202,57 @@ def send_telemetry(node_id: str, value: float):
                     
                     # Ponawiamy telemetrię
                     _post("/api/nodes/telemetry/", payload, token=access)
-                    logger.info("[ApiClient] Pomyślnie wysłano telemetrię dla %s: %s (po rejestracji)", node_id, payload["value"])
+                    logger.info("[ApiClient] Pomyślnie wysłano telemetrię dla %s: %s (po rejestracji)", node_id, payload["payload"]["data"])
                 except Exception as ex:
                     logger.warning("[ApiClient] Błąd automatycznej rejestracji węzła %s: %s", node_id, ex)
             else:
                 logger.warning("[ApiClient] Brak device_id - nie można automatycznie zarejestrować węzła %s.", node_id)
         else:
             logger.warning("[ApiClient] Błąd wysyłania telemetrii dla %s: %s", node_id, err_str)
+
+# ---------------------------------------------------------------------------
+# Rejestracja peryferiów (manualna)
+# ---------------------------------------------------------------------------
+
+def register_peripheral(node_id: str) -> dict:
+    """
+    Rejestruje węzeł jako peryferium w Central API.
+    Buduje payload na podstawie danych Node z lokalnej bazy gatewaya.
+    Zwraca dict z wynikiem lub rzuca RuntimeError.
+    """
+    tokens = _load_tokens()
+    if not tokens:
+        raise RuntimeError("Gateway nie jest sparowany z API.")
+
+    access = tokens.get("access")
+    device_id = tokens.get("device_id")
+    if not access or not device_id:
+        raise RuntimeError("Brak tokenu dostępu lub device_id.")
+
+    from nodes.models import Node
+    try:
+        node = Node.objects.get(name=node_id)
+    except Node.DoesNotExist:
+        raise RuntimeError(f"Węzeł '{node_id}' nie istnieje w lokalnej bazie.")
+
+    peripheral = {
+        "node_id": node.name,
+        "sensor_type": node.sensor_kind,
+    }
+    switch = node.switches.first()
+    if switch:
+        peripheral["gpio"] = switch.switch_id
+        peripheral["peripheral_type"] = switch.switch_type
+
+    reg_payload = {
+        "device_id": device_id,
+        "peripherals": [peripheral],
+    }
+
+    result = _post("/api/nodes/register-peripherals/", reg_payload, token=access)
+    logger.info("[ApiClient] Zarejestrowano peryferium '%s' w API.", node_id)
+    return result
+
 
 # ---------------------------------------------------------------------------
 # Heartbeat + wykonanie komend
@@ -219,9 +263,11 @@ def _execute_command(cmd: dict):
     try:
         from ecucumbers.mqtt_client import station
 
+        print("[ApiClient] Executing command:", cmd)
+
         command_name = cmd.get("command")
-        node_id = cmd.get("peripheral", {}).get("node_id")
-        gpio = cmd.get("peripheral", {}).get("gpio")
+        node_id = cmd.get("node_id")
+        gpio = cmd.get("gpio")
         time_param = cmd.get("time")
 
         if station is None or node_id not in station.devices:
@@ -348,7 +394,7 @@ def init_api_client():
     - Uruchamia wątek heartbeat jeśli sparowany
     """
     from django.conf import settings
-    interval = getattr(settings, "API_HEARTBEAT_INTERVAL", 30)
+    interval = getattr(settings, "API_HEARTBEAT_INTERVAL", 5)
     status["api_url"] = _api_url()
 
     threading.Thread(target=_async_init, args=(interval,), daemon=True).start()
